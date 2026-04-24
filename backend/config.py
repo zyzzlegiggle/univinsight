@@ -13,6 +13,7 @@ ALPHA_VANTAGE_API_KEY = os.getenv("ALPHA_VANTAGE_API_KEY", "")
 
 # External API Base URLs
 POLYMARKET_API_URL = os.getenv("POLYMARKET_API_URL", "https://gamma-api.polymarket.com")
+POLYMARKET_CLOB_URL = os.getenv("POLYMARKET_CLOB_URL", "https://clob.polymarket.com")
 METACULUS_API_URL = os.getenv("METACULUS_API_URL", "https://www.metaculus.com/api2")
 FRED_API_URL = os.getenv("FRED_API_URL", "https://api.stlouisfed.org/fred")
 ALPHA_VANTAGE_API_URL = os.getenv("ALPHA_VANTAGE_API_URL", "https://www.alphavantage.co/query")
