@@ -1,0 +1,47 @@
+# Dependencies
+node_modules/
+backend/venv/
+backend/.venv/
+env/
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Backend / Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.python-version
+.ipynb_checkpoints
+backend/.env
+backend/static/
+
+# Frontend / Vite
+dist/
+dist-ssr/
+*.local
+frontend/.env
+frontend/.env.*
+!frontend/.env.example
+
+# Logs and databases
+*.log
+*.sqlite
+backend/db.sqlite3
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+.project
+.settings/
+.classpath
