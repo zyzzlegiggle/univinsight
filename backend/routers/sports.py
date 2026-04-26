@@ -1,7 +1,6 @@
-"""Sports — TheSportsDB + NewsAPI.org for sports news."""
 import httpx
 from fastapi import APIRouter, Query
-from config import SPORTSDB_API_URL, NEWS_API_URL, NEWS_API_KEY
+from config import SPORTSDB_API_URL
 
 router = APIRouter(prefix="/api/sports", tags=["sports"])
 
@@ -12,7 +11,6 @@ async def get_sports_data(
     country: str = Query("", description="Country name"),
 ):
     teams = []
-    news = []
 
     async with httpx.AsyncClient(timeout=15.0) as client:
         # ── Teams (TheSportsDB) ────────────────────
@@ -36,43 +34,9 @@ async def get_sports_data(
         except Exception:
             pass
 
-        # ── News (NewsAPI.org) ──────────────────────
-        if NEWS_API_KEY:
-            try:
-                # Search for sports news in the location + country
-                search_query = location
-                if country:
-                    search_query = f"{location} {country}"
-
-                resp = await client.get(
-                    NEWS_API_URL,
-                    params={
-                        "q": search_query,
-                        "category": "sports",
-                        "apiKey": NEWS_API_KEY,
-                        "pageSize": 5,
-                    }
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    articles = data.get("articles", [])
-                    for art in articles:
-                        if not art.get("title") or "[Removed]" in art.get("title"):
-                            continue
-                        news.append({
-                            "title": art.get("title"),
-                            "source": art.get("source", {}).get("name"),
-                            "url": art.get("url"),
-                            "image": art.get("urlToImage"),
-                            "published": art.get("publishedAt"),
-                        })
-            except Exception:
-                pass
-
     return {
         "location": location,
         "teams": teams,
-        "news": news,
-        "has_news_key": bool(NEWS_API_KEY),
-        "note": "Team metadata from TheSportsDB. Sports news from NewsAPI.org."
+        "note": "Team metadata from TheSportsDB."
     }
+

@@ -20,5 +20,4 @@ ALPHA_VANTAGE_API_URL = os.getenv("ALPHA_VANTAGE_API_URL", "https://www.alphavan
 OPEN_METEO_API_URL = os.getenv("OPEN_METEO_API_URL", "https://api.open-meteo.com/v1")
 SPORTSDB_API_URL = os.getenv("SPORTSDB_API_URL", "https://www.thesportsdb.com/api/v1/json/3")
 KALSHI_API_URL = os.getenv("KALSHI_API_URL", "https://api.elections.kalshi.com/trade-api/v2")
-NEWS_API_URL = os.getenv("NEWS_API_URL", "https://newsapi.org/v2/top-headlines")
-NEWS_API_KEY = os.getenv("NEWS_API_KEY", "")
+GNEWS_API_KEY = os.getenv("GNEWS_API_KEY", "")

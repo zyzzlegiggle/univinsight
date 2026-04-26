@@ -1,12 +1,45 @@
 import './style.css';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { fetchHeadlines, fetchPriceHistory, fetchMarketTrades } from './services/api.js';
+import { fetchHeadlines, fetchPriceHistory, fetchMarketTrades, fetchRelatedInfo } from './services/api.js';
 
 mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
 let map;
 let allMarketData = [];
+let activeMarketId = null;
+let activeCoords = null;
+let activeProps = null;
+let globePopup = null;
+
+function getPopupHTML(p) {
+  const vol = p.volume ? fmtVol(p.volume) : '$0';
+  return `
+    <div class="map-popup">
+      <div class="map-popup__header">
+        <span class="map-popup__source">
+          ${p.source === 'Polymarket'
+      ? '<img src="/polymarket-icon.png" class="source-icon" alt="Polymarket" />'
+      : p.source || 'Polymarket'}
+        </span>
+        <span class="map-popup__vol">VOL ${vol}</span>
+      </div>
+      ${p.image && p.image !== 'null' ? `<img src="${p.image}" class="map-popup__img" />` : ''}
+      <div class="map-popup__title">${p.title}</div>
+      <div class="map-popup__prob">
+        <div class="dual-prob__bar" style="height:4px;margin-top:6px">
+          <div class="bar-yes" style="width:${p.probability || 0}%"></div>
+          <div class="bar-no" style="width:${100 - (p.probability || 0)}%"></div>
+        </div>
+        <div class="search-item__probs" style="margin-top:8px">
+          <div class="search-prob search-prob--yes">${p.top_outcome || 'Yes'} ${p.probability || 0}%</div>
+          <div class="search-prob search-prob--no">No ${Math.round((100 - (p.probability || 0)) * 10) / 10}%</div>
+          <div class="search-prob search-prob--neutral">${fmtCountdown(p.end_date)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
 
 // ─── App Shell ───────────────────────────────────────────────
 function renderApp() {
@@ -117,9 +150,9 @@ async function openMarketModal(mkt, clickedCoords) {
     <h3 class="mm__title">${mkt.title}</h3>
     <div class="mm__prob-row">
       ${mkt.outcomes && mkt.outcomes.length > 2 ? `
-        <div class="mm__outcomes-list">
-          ${mkt.outcomes.map(o => `
-            <div class="mm__outcome-item">
+        <div class="mm__outcomes-list" id="mm-outcomes-list">
+          ${mkt.outcomes.map((o, i) => `
+            <div class="mm__outcome-item ${i >= 2 ? 'mm__outcome-item--hidden' : ''}">
               <div class="mm__outcome-info">
                 <span style="color:#22c55e; font-size:11px; font-weight:700">Yes ${o.probability}%</span> 
                 <span class="mm__outcome-title">${o.title}</span>
@@ -131,6 +164,9 @@ async function openMarketModal(mkt, clickedCoords) {
               </div>
             </div>
           `).join('')}
+          ${mkt.outcomes.length > 2 ? `
+            <button class="mm__see-more" id="mm-outcomes-more">See more (+${mkt.outcomes.length - 2})</button>
+          ` : ''}
         </div>
       ` : `
         <div class="dual-prob__bar" style="height:6px">
@@ -162,17 +198,81 @@ async function openMarketModal(mkt, clickedCoords) {
       if (name === 'stats') loadStats(mkt);
       else if (name === 'trades') loadTrades(mkt);
       else if (name === 'rules') loadRules(mkt);
-      else {
-        document.getElementById('mm-body').innerHTML = `
-          <div class="mm__no-data">Related information will be available soon.</div>
-        `;
-      }
+      else loadRelatedInfo(mkt);
     });
   });
 
   document.getElementById('mm-close').addEventListener('click', closeModal);
+  
+  const moreBtn = document.getElementById('mm-outcomes-more');
+  if (moreBtn) {
+    moreBtn.addEventListener('click', () => {
+      const items = document.querySelectorAll('.mm__outcome-item--hidden');
+      items.forEach(it => it.classList.remove('mm__outcome-item--hidden'));
+      moreBtn.style.display = 'none';
+    });
+  }
+
   loadStats(mkt);
 }
+
+
+// ─── Related Info Tab ───────────────────────────────────────
+async function loadRelatedInfo(mkt) {
+  const body = document.getElementById('mm-body');
+  body.innerHTML = `
+    <div class="mm__loading-stack">
+      <div class="mm__loading"><div class="modal__spinner"></div> <span style="margin-left:8px">Fetching related news...</span></div>
+    </div>
+  `;
+
+  try {
+    const data = await fetchRelatedInfo(mkt.title);
+    const articles = data.articles || [];
+
+    body.innerHTML = `
+      <div class="related-section">
+        <div class="related-header">
+          <h4 class="related-title">Related News</h4>
+          <span class="related-count">${articles.length} articles</span>
+        </div>
+        ${renderSlider(articles)}
+      </div>
+    `;
+  } catch (e) {
+    console.error('Related Info Error:', e);
+    body.innerHTML = `<div class="mm__no-data">Failed to load related news.</div>`;
+  }
+}
+
+function renderSlider(articles) {
+  if (!articles || articles.length === 0) return '<div class="mm__no-data">No matching articles found</div>';
+  return `
+    <div class="related-slider">
+      ${articles.map(a => `
+        <a href="${a.url}" target="_blank" class="related-card">
+          ${a.image ? `
+            <div class="related-card__img-wrap">
+              <img src="${a.image}" class="related-card__img" onerror="this.parentElement.style.display='none';" />
+            </div>
+          ` : ''}
+          <div class="related-card__content">
+            <div class="related-card__header">
+              <span class="related-card__site">${a.site || 'News'}</span>
+              <span class="related-card__date">${a.published ? new Date(a.published).toLocaleDateString() : ''}</span>
+            </div>
+            <div class="related-card__title">${a.title}</div>
+            <div class="related-card__desc">${a.description || ''}</div>
+          </div>
+        </a>
+      `).join('')}
+    </div>
+  `;
+}
+
+
+
+
 
 function closeModal() {
   document.getElementById('market-modal-overlay').classList.remove('market-modal-overlay--open');
@@ -516,6 +616,12 @@ function initSearch() {
         );
         drawConnectionLines(sibling.map(f => f.geometry.coordinates));
 
+        // Set persistent popup
+        activeMarketId = marketFeatures[0].properties.market_id;
+        activeCoords = coords;
+        activeProps = marketFeatures[0].properties;
+        if (globePopup) globePopup.setLngLat(coords).setHTML(getPopupHTML(activeProps)).addTo(map);
+
         openMarketModal(mkt, coords);
       }
     }
@@ -634,49 +740,36 @@ function initMap() {
     });
 
     // Hover
-    const popup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
+    globePopup = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
+
     map.on('mouseenter', 'market-dots', e => {
       map.getCanvas().style.cursor = 'pointer';
       const p = e.features[0].properties;
       const c = e.features[0].geometry.coordinates.slice();
-      const vol = p.volume ? fmtVol(p.volume) : '$0';
-      popup.setLngLat(c).setHTML(`
-        <div class="map-popup">
-          <div class="map-popup__header">
-            <span class="map-popup__source">
-              ${p.source === 'Polymarket'
-          ? '<img src="/polymarket-icon.png" class="source-icon" alt="Polymarket" />'
-          : p.source || 'Polymarket'}
-            </span>
-            <span class="map-popup__vol">VOL ${vol}</span>
-          </div>
-          ${p.image && p.image !== 'null' ? `<img src="${p.image}" class="map-popup__img" />` : ''}
-          <div class="map-popup__title">${p.title}</div>
-          <div class="map-popup__prob">
-            <div class="dual-prob__bar" style="height:4px;margin-top:6px">
-              <div class="bar-yes" style="width:${p.probability || 0}%"></div>
-              <div class="bar-no" style="width:${100 - (p.probability || 0)}%"></div>
-            </div>
-            <div class="search-item__probs" style="margin-top:8px">
-              <div class="search-prob search-prob--yes">${p.top_outcome || 'Yes'} ${p.probability || 0}%</div>
-              <div class="search-prob search-prob--no">No ${Math.round((100 - (p.probability || 0)) * 10) / 10}%</div>
-              <div class="search-prob search-prob--neutral">${fmtCountdown(p.end_date)}</div>
-            </div>
-          </div>
-        </div>
-      `).addTo(map);
+      globePopup.setLngLat(c).setHTML(getPopupHTML(p)).addTo(map);
     });
+
     map.on('mouseleave', 'market-dots', () => {
       map.getCanvas().style.cursor = '';
-      popup.remove();
+      if (activeMarketId && activeCoords && activeProps) {
+        globePopup.setLngLat(activeCoords).setHTML(getPopupHTML(activeProps)).addTo(map);
+      } else {
+        globePopup.remove();
+      }
     });
 
     // Click -> open modal + draw connection lines
     map.on('click', 'market-dots', e => {
-      popup.remove();
       const p = e.features[0].properties;
       const clickedCoords = e.features[0].geometry.coordinates.slice();
       const marketId = p.market_id;
+
+      // Make popup persistent
+      activeMarketId = marketId;
+      activeCoords = clickedCoords;
+      activeProps = p;
+      globePopup.setLngLat(clickedCoords).setHTML(getPopupHTML(p)).addTo(map);
+
 
       // Zoom to the clicked point
       map.flyTo({ center: clickedCoords, zoom: 4, duration: 1200 });
@@ -699,10 +792,15 @@ function initMap() {
     map.on('click', e => {
       const features = map.queryRenderedFeatures(e.point, { layers: ['market-dots'] });
       if (!features.length) {
+        activeMarketId = null;
+        activeCoords = null;
+        activeProps = null;
+        popup.remove();
         clearConnectionLines();
         closeModal();
       }
     });
+
   });
 }
 

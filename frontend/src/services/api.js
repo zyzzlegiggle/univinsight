@@ -27,3 +27,9 @@ export async function fetchMarketTrades(conditionId, tokenId) {
   });
   return fetchJSON(`${API_BASE}/market/trades?${params}`);
 }
+
+export async function fetchRelatedInfo(query) {
+  const params = new URLSearchParams({ q: query });
+  return fetchJSON(`${API_BASE}/news/related?${params}`);
+}
+
