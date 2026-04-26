@@ -120,7 +120,7 @@ async def get_market_headlines():
     async with httpx.AsyncClient(timeout=20.0) as client:
         offset = 0
         limit = 100
-        max_pages = 15  # Up to 1500 events
+        max_pages = 4  # Drastically reduced to test if truncation is the issue
 
         for _ in range(max_pages):
             try:
@@ -143,7 +143,7 @@ async def get_market_headlines():
                     break
 
                 for e in events:
-                    title = e.get("title")
+                    title = str(e.get("title", "")).replace("\x00", "") # Sanitize
                     if not title:
                         continue
 
@@ -151,16 +151,17 @@ async def get_market_headlines():
                     if not locations:
                         continue
 
-                    # Extract outcomes from all markets in the event
                     outcomes = []
-                    description = e.get("description", "")
+                    description = str(e.get("description", "")).replace("\x00", "")
+                    if description and len(description) > 200:
+                        description = description[:200] + "..."
+                    
                     end_date = None
                     condition_id = None
                     
                     for m in e.get("markets", []):
-                        m_title = m.get("groupItemTitle") or m.get("title") or "Outcome"
+                        m_title = str(m.get("groupItemTitle") or m.get("title") or "Outcome").replace("\x00", "")
                         m_prob = 0
-                        m_token_id = None
                         
                         try:
                             prices = json.loads(m.get("outcomePrices", "[]"))
@@ -168,6 +169,7 @@ async def get_market_headlines():
                                 m_prob = round(float(prices[0]) * 100, 1)
                         except: pass
                         
+                        m_token_id = None
                         try:
                             tokens = json.loads(m.get("clobTokenIds", "[]"))
                             if tokens:
@@ -181,25 +183,20 @@ async def get_market_headlines():
                             "condition_id": m.get("conditionId")
                         })
                         
-                        # Use first market for shared metadata
                         if not end_date:
                             end_date = m.get("endDate")
                         if not condition_id:
                             condition_id = m.get("conditionId")
 
-                    # Primary probability for the main dot/ticker (highest outcome or first)
-                    primary_prob = outcomes[0]["probability"] if outcomes else None
-                    if outcomes and len(outcomes) > 2:
-                        # For multi-choice, find the most likely outcome
-                        primary_prob = max(o["probability"] for o in outcomes)
+                    primary_prob = outcomes[0]["probability"] if outcomes else 0
 
                     all_items.append({
                         "title": title,
                         "locations": locations,
                         "probability": primary_prob,
-                        "outcomes": outcomes, # All choices
-                        "volume": e.get("volume", 0),
-                        "liquidity": e.get("liquidity", 0),
+                        "outcomes": outcomes[:5], # Drastically reduced
+                        "volume": float(e.get("volume") or 0),
+                        "liquidity": float(e.get("liquidity") or 0),
                         "source": "Polymarket",
                         "image": e.get("image") or e.get("icon"),
                         "url": f"https://polymarket.com/event/{e.get('slug')}",
@@ -215,7 +212,9 @@ async def get_market_headlines():
             except Exception:
                 break
 
-    return {"headlines": all_items}
+    # Final sort by volume to ensure we show the best ones first
+    all_items.sort(key=lambda x: x.get("volume", 0), reverse=True)
+    return {"headlines": all_items[:300]} # Cap final result
 
 
 # ─── Price History (CLOB API) ─────────────────────────────────
