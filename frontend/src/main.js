@@ -24,6 +24,14 @@ function renderApp() {
           <div class="header__subtitle">Universal Insight</div>
         </div>
       </div>
+
+      <div class="header__center">
+        <div class="search-container">
+          <input type="text" id="search-input" class="search-input" placeholder="Find Market" autocomplete="off" />
+          <div class="search-results" id="search-results"></div>
+        </div>
+      </div>
+
       <div class="header__actions">
         <button class="theme-toggle" id="theme-toggle" title="Toggle theme">
           <svg class="theme-toggle__icon--sun" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
@@ -31,6 +39,8 @@ function renderApp() {
         </button>
       </div>
     </header>
+
+    <div class="search-overlay" id="search-overlay"></div>
 
     <div class="ticker" id="ticker-container">
       <div class="ticker__track" id="ticker-track">
@@ -63,7 +73,7 @@ function fmtTime(d) {
   if (!d) return '--';
   try {
     const dt = new Date(d);
-    const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const day = days[dt.getDay()];
     let hrs = dt.getHours();
     const ampm = hrs >= 12 ? 'PM' : 'AM';
@@ -94,7 +104,11 @@ async function openMarketModal(mkt, clickedCoords) {
   modal.innerHTML = `
     <div class="mm__header">
       <div class="mm__header-left">
-        <span class="mm__source">Polymarket</span>
+        <span class="mm__source">
+          ${mkt.source === 'Polymarket'
+      ? '<img src="/polymarket-icon.png" class="source-icon" alt="Polymarket" />'
+      : mkt.source || 'Polymarket'}
+        </span>
         <span class="mm__vol">VOL ${fmtVol(mkt.volume)}</span>
       </div>
       <button class="mm__close" id="mm-close">&times;</button>
@@ -102,19 +116,38 @@ async function openMarketModal(mkt, clickedCoords) {
     ${mkt.image ? `<img src="${mkt.image}" class="mm__img" />` : ''}
     <h3 class="mm__title">${mkt.title}</h3>
     <div class="mm__prob-row">
-      <div class="dual-prob__bar" style="height:6px">
-        <div class="bar-yes" style="width:${yes}%"></div>
-        <div class="bar-no" style="width:${no}%"></div>
-      </div>
-      <div class="mm__prob-labels">
-        <span class="mm__yes">YES ${yes}%</span>
-        <span class="mm__no">NO ${no}%</span>
-      </div>
+      ${mkt.outcomes && mkt.outcomes.length > 2 ? `
+        <div class="mm__outcomes-list">
+          ${mkt.outcomes.map(o => `
+            <div class="mm__outcome-item">
+              <div class="mm__outcome-info">
+                <span style="color:#22c55e; font-size:11px; font-weight:700">Yes ${o.probability}%</span> 
+                <span class="mm__outcome-title">${o.title}</span>
+                <span style="color:#ef4444; font-size:11px; font-weight:700">No ${Math.round((100 - o.probability) * 10) / 10}%</span>
+              </div>
+              <div class="dual-prob__bar" style="height:4px; margin-top:2px;">
+                <div class="bar-yes" style="width:${o.probability}%"></div>
+                <div class="bar-no" style="width:${100 - o.probability}%"></div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `
+        <div class="dual-prob__bar" style="height:6px">
+          <div class="bar-yes" style="width:${yes}%"></div>
+          <div class="bar-no" style="width:${no}%"></div>
+        </div>
+        <div class="mm__prob-labels">
+          <span class="mm__yes">YES ${yes}%</span>
+          <span class="mm__no">NO ${no}%</span>
+        </div>
+      `}
     </div>
     <div class="mm__tabs">
       <button class="mm__tab mm__tab--active" data-tab="stats">Stats</button>
       <button class="mm__tab" data-tab="trades">Trades</button>
       <button class="mm__tab" data-tab="rules">Rules</button>
+      <button class="mm__tab" data-tab="related">Related Info</button>
     </div>
     <div class="mm__body" id="mm-body">
       <div class="mm__loading"><div class="modal__spinner"></div></div>
@@ -128,7 +161,12 @@ async function openMarketModal(mkt, clickedCoords) {
       const name = tab.dataset.tab;
       if (name === 'stats') loadStats(mkt);
       else if (name === 'trades') loadTrades(mkt);
-      else loadRules(mkt);
+      else if (name === 'rules') loadRules(mkt);
+      else {
+        document.getElementById('mm-body').innerHTML = `
+          <div class="mm__no-data">Related information will be available soon.</div>
+        `;
+      }
     });
   });
 
@@ -157,9 +195,9 @@ async function loadStats(mkt) {
   body.innerHTML = `
     <div class="mm__chart-section">
       <div class="mm__interval-row">
-        ${['1h','6h','1d','1w','1m','max'].map((iv, i) =>
-          `<button class="mm__iv${i === 2 ? ' mm__iv--active' : ''}" data-iv="${iv}">${iv.toUpperCase()}</button>`
-        ).join('')}
+        ${['1h', '6h', '1d', '1w', '1m', 'max'].map((iv, i) =>
+    `<button class="mm__iv${i === 2 ? ' mm__iv--active' : ''}" data-iv="${iv}">${iv.toUpperCase()}</button>`
+  ).join('')}
       </div>
       <div class="mm__chart-wrap">
         <canvas id="mm-chart" width="420" height="180"></canvas>
@@ -197,63 +235,120 @@ function drawChart(history) {
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const W = canvas.width, H = canvas.height;
-  ctx.clearRect(0, 0, W, H);
 
-  if (!history.length) {
-    ctx.fillStyle = '#94a3b8';
-    ctx.font = '12px Inter, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText('No price data available', W / 2, H / 2);
-    return;
+  const mn = history.length ? Math.min(...history.map(h => Number(h.p))) * 0.98 : 0;
+  const mx = history.length ? Math.max(...history.map(h => Number(h.p))) * 1.02 : 1;
+  const rng = mx - mn || 1;
+  const px = 0, py = 12;
+  const dw = W, dh = H - py * 2;
+
+  const getX = i => px + (i / (history.length - 1)) * dw;
+  const getY = p => py + dh - ((p - mn) / rng) * dh;
+
+  function render(hoverIdx = -1) {
+    ctx.clearRect(0, 0, W, H);
+    if (!history.length) {
+      ctx.fillStyle = '#94a3b8';
+      ctx.font = '12px Inter, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('No price data available', W / 2, H / 2);
+      return;
+    }
+
+    // Fill
+    const grad = ctx.createLinearGradient(0, py, 0, H - py);
+    grad.addColorStop(0, 'rgba(79,70,229,0.12)');
+    grad.addColorStop(1, 'rgba(79,70,229,0)');
+    ctx.beginPath();
+    ctx.moveTo(px, H - py);
+    history.forEach((h, i) => ctx.lineTo(getX(i), getY(Number(h.p))));
+    ctx.lineTo(W, H - py);
+    ctx.closePath();
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Line
+    ctx.beginPath();
+    history.forEach((h, i) => i === 0 ? ctx.moveTo(getX(i), getY(Number(h.p))) : ctx.lineTo(getX(i), getY(Number(h.p))));
+    ctx.strokeStyle = '#4f46e5';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    if (hoverIdx >= 0 && hoverIdx < history.length) {
+      const pt = history[hoverIdx];
+      const x = getX(hoverIdx);
+      const y = getY(Number(pt.p));
+
+      // Crosshair lines
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(79,70,229,0.3)';
+      ctx.lineWidth = 1;
+
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Point circle
+      ctx.beginPath();
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fillStyle = '#4f46e5';
+      ctx.fill();
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Axis labels
+      ctx.font = '10px Inter, sans-serif';
+      const pText = (Number(pt.p) * 100).toFixed(1) + 'c';
+      const tText = pt.t ? new Date(pt.t * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+      // Price label (Vertical)
+      ctx.fillStyle = '#4f46e5';
+      ctx.fillRect(W - 40, y - 10, 40, 20);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'right';
+      ctx.fillText(pText, W - 4, y + 4);
+
+      // Time label (Horizontal)
+      ctx.fillStyle = '#4f46e5';
+      const tW = ctx.measureText(tText).width + 10;
+      ctx.fillRect(x - tW / 2, H - 15, tW, 15);
+      ctx.fillStyle = '#fff';
+      ctx.textAlign = 'center';
+      ctx.fillText(tText, x, H - 4);
+    }
   }
 
-  const prices = history.map(h => Number(h.p));
-  const mn = Math.min(...prices) * 0.98;
-  const mx = Math.max(...prices) * 1.02;
-  const rng = mx - mn || 1;
-  const px = 4, py = 12;
-  const dw = W - px * 2, dh = H - py * 2;
+  render();
 
-  // Fill
-  const grad = ctx.createLinearGradient(0, py, 0, H - py);
-  grad.addColorStop(0, 'rgba(79,70,229,0.12)');
-  grad.addColorStop(1, 'rgba(79,70,229,0)');
-  ctx.beginPath();
-  ctx.moveTo(px, H - py);
-  prices.forEach((p, i) => {
-    ctx.lineTo(px + (i / (prices.length - 1)) * dw, py + dh - ((p - mn) / rng) * dh);
-  });
-  ctx.lineTo(px + dw, H - py);
-  ctx.closePath();
-  ctx.fillStyle = grad;
-  ctx.fill();
-
-  // Line
-  ctx.beginPath();
-  prices.forEach((p, i) => {
-    const x = px + (i / (prices.length - 1)) * dw;
-    const y = py + dh - ((p - mn) / rng) * dh;
-    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
-  });
-  ctx.strokeStyle = '#4f46e5';
-  ctx.lineWidth = 2;
-  ctx.stroke();
-
-  // Hover
   const tt = document.getElementById('mm-tooltip');
   canvas.onmousemove = e => {
     const r = canvas.getBoundingClientRect();
-    const mx2 = e.clientX - r.left;
-    const idx = Math.round(((mx2 - px) / dw) * (prices.length - 1));
-    if (idx < 0 || idx >= prices.length) { tt.style.display = 'none'; return; }
-    const pt = history[idx];
-    tt.innerHTML = `<strong>${(Number(pt.p) * 100).toFixed(1)}%</strong><br/>${pt.t ? new Date(pt.t * 1000).toLocaleString() : ''}`;
-    tt.style.display = 'block';
-    tt.style.left = Math.min(mx2 + 10, dw - 60) + 'px';
-    tt.style.top = (py + dh - ((prices[idx] - mn) / rng) * dh - 30) + 'px';
+    // Scale mouse position to internal canvas dimensions
+    const scaleX = W / r.width;
+    const mx2 = (e.clientX - r.left) * scaleX;
+
+    const idx = Math.round((mx2 / W) * (history.length - 1));
+    if (idx >= 0 && idx < history.length) {
+      render(idx);
+      const pt = history[idx];
+      tt.innerHTML = `<strong>${(Number(pt.p) * 100).toFixed(1)}%</strong><br/>${pt.t ? new Date(pt.t * 1000).toLocaleString() : ''}`;
+      tt.style.display = 'block';
+
+      // Tooltip position in CSS pixels (relative to rect)
+      const tx = (e.clientX - r.left);
+      const ty = (getY(Number(pt.p)) / (H / r.height));
+
+      tt.style.left = Math.min(tx + 10, r.width - 80) + 'px';
+      tt.style.top = (ty - 30) + 'px';
+    } else {
+      tt.style.display = 'none';
+      render();
+    }
   };
-  canvas.onmouseleave = () => { tt.style.display = 'none'; };
+  canvas.onmouseleave = () => { tt.style.display = 'none'; render(); };
 }
+
 
 // ─── Trades Tab ──────────────────────────────────────────────
 async function loadTrades(mkt) {
@@ -266,14 +361,14 @@ async function loadTrades(mkt) {
     trades = d.trades || [];
   } catch (e) { console.warn(e); }
 
-  const filters = [['All', 0], ['$10', 10], ['$100', 100], ['$1K', 1000], ['$10K', 10000]];
+  const filters = [['All', 0], ['$10', 10], ['$100', 100], ['$1K', 1000]];
 
   body.innerHTML = `
     <div class="mm__trades-filter">
       <span class="mm__trades-label">Min Trade</span>
       ${filters.map(([label, val], i) =>
-        `<button class="mm__fbtn${i === 0 ? ' mm__fbtn--active' : ''}" data-min="${val}">${label}</button>`
-      ).join('')}
+    `<button class="mm__fbtn${i === 0 ? ' mm__fbtn--active' : ''}" data-min="${val}">${label}</button>`
+  ).join('')}
       <div class="mm__fcustom">
         <span>$</span><input type="text" inputmode="numeric" id="mm-custom-f" />
       </div>
@@ -336,7 +431,12 @@ function initTicker(items) {
     <a href="${it.url}" target="_blank" class="ticker__item">
       ${it.image ? `<img src="${it.image}" class="ticker__img" />` : ''}
       <span class="ticker__title">${it.title}</span>
-      <span class="ticker__prob">${it.probability || 0}%</span>
+      <span class="ticker__prob">
+        ${it.outcomes && it.outcomes.length > 2
+      ? (it.outcomes.reduce((prev, current) => (prev.probability > current.probability) ? prev : current).title)
+      : 'Yes'} 
+        ${it.probability || 0}%
+      </span>
     </a>
   `).join('');
   track.innerHTML = html + html;
@@ -352,6 +452,87 @@ function initTheme() {
   });
 }
 
+// ─── Search ──────────────────────────────────────────────────
+function initSearch() {
+  const input = document.getElementById('search-input');
+  const results = document.getElementById('search-results');
+  const overlay = document.getElementById('search-overlay');
+
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    if (!q) {
+      results.style.display = 'none';
+      overlay.classList.remove('search-overlay--visible');
+      return;
+    }
+
+    const filtered = allMarketData.filter(m =>
+      m.title.toLowerCase().includes(q)
+    ).slice(0, 8);
+
+    if (filtered.length > 0) {
+      results.innerHTML = filtered.map(m => `
+        <div class="search-item" data-title="${m.title.replace(/"/g, '&quot;')}">
+          <div class="search-item__content">
+            <div class="search-item__title">${m.title}</div>
+            <div class="search-item__probs">
+              <div class="search-prob search-prob--yes">${m.outcomes && m.outcomes.length > 2
+          ? (m.outcomes.reduce((prev, current) => (prev.probability > current.probability) ? prev : current).title)
+          : 'Yes'} ${m.probability || 0}%</div>
+              <div class="search-prob search-prob--no">No ${Math.round((100 - (m.probability || 0)) * 10) / 10}%</div>
+              <div class="search-prob search-prob--neutral">${fmtCountdown(m.end_date)}</div>
+            </div>
+          </div>
+        </div>
+      `).join('');
+      results.style.display = 'block';
+      overlay.classList.add('search-overlay--visible');
+    } else {
+      results.innerHTML = '<div class="search-no-results">No markets found</div>';
+      results.style.display = 'block';
+      overlay.classList.add('search-overlay--visible');
+    }
+  });
+
+  results.addEventListener('click', e => {
+    const item = e.target.closest('.search-item');
+    if (!item) return;
+
+    const title = item.dataset.title;
+    const mkt = allMarketData.find(m => m.title === title);
+    if (mkt) {
+      // Find coordinates from map features
+      const marketFeatures = map.getSource('markets')._data.features.filter(
+        f => f.properties.title === mkt.title
+      );
+      if (marketFeatures.length > 0) {
+        const coords = marketFeatures[0].geometry.coordinates;
+        map.flyTo({ center: coords, zoom: 4, duration: 1200 });
+
+        // Draw connection lines for siblings
+        const marketId = marketFeatures[0].properties.market_id;
+        const sibling = map.getSource('markets')._data.features.filter(
+          f => f.properties.market_id === marketId
+        );
+        drawConnectionLines(sibling.map(f => f.geometry.coordinates));
+
+        openMarketModal(mkt, coords);
+      }
+    }
+
+    // Reset search
+    input.value = '';
+    results.style.display = 'none';
+    overlay.classList.remove('search-overlay--visible');
+  });
+
+  overlay.addEventListener('click', () => {
+    input.value = '';
+    results.style.display = 'none';
+    overlay.classList.remove('search-overlay--visible');
+  });
+}
+
 // ─── Connection Lines ────────────────────────────────────────
 function clearConnectionLines() {
   if (map.getLayer('connection-lines')) map.removeLayer('connection-lines');
@@ -364,7 +545,7 @@ function greatCircleArc(start, end, steps = 64) {
   const toDeg = r => r * 180 / Math.PI;
 
   const lng1 = toRad(start[0]), lat1 = toRad(start[1]);
-  const lng2 = toRad(end[0]),   lat2 = toRad(end[1]);
+  const lng2 = toRad(end[0]), lat2 = toRad(end[1]);
 
   // Central angle via haversine
   const dLat = lat2 - lat1;
@@ -462,7 +643,11 @@ function initMap() {
       popup.setLngLat(c).setHTML(`
         <div class="map-popup">
           <div class="map-popup__header">
-            <span class="map-popup__source">Polymarket</span>
+            <span class="map-popup__source">
+              ${p.source === 'Polymarket'
+          ? '<img src="/polymarket-icon.png" class="source-icon" alt="Polymarket" />'
+          : p.source || 'Polymarket'}
+            </span>
             <span class="map-popup__vol">VOL ${vol}</span>
           </div>
           ${p.image && p.image !== 'null' ? `<img src="${p.image}" class="map-popup__img" />` : ''}
@@ -472,9 +657,10 @@ function initMap() {
               <div class="bar-yes" style="width:${p.probability || 0}%"></div>
               <div class="bar-no" style="width:${100 - (p.probability || 0)}%"></div>
             </div>
-            <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;margin-top:4px">
-              <span style="color:#22c55e">YES ${p.probability || 0}%</span>
-              <span style="color:#ef4444">NO ${Math.round((100 - (p.probability || 0)) * 10) / 10}%</span>
+            <div class="search-item__probs" style="margin-top:8px">
+              <div class="search-prob search-prob--yes">${p.top_outcome || 'Yes'} ${p.probability || 0}%</div>
+              <div class="search-prob search-prob--no">No ${Math.round((100 - (p.probability || 0)) * 10) / 10}%</div>
+              <div class="search-prob search-prob--neutral">${fmtCountdown(p.end_date)}</div>
             </div>
           </div>
         </div>
@@ -580,6 +766,10 @@ async function plotMarketsOnMap(items) {
           image: item.image,
           source: item.source,
           market_id: id,
+          end_date: item.end_date,
+          top_outcome: item.outcomes && item.outcomes.length > 2
+            ? (item.outcomes.reduce((prev, current) => (prev.probability > current.probability) ? prev : current).title)
+            : 'YES',
         }
       });
     }
@@ -607,6 +797,7 @@ async function refresh() {
 async function boot() {
   renderApp();
   initTheme();
+  initSearch();
   initMap();
   await new Promise(r => { if (map.loaded()) r(); else map.once('load', r); });
 

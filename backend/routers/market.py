@@ -151,42 +151,59 @@ async def get_market_headlines():
                     if not locations:
                         continue
 
-                    # Extract data from first market
-                    prob = None
-                    token_id = None
-                    condition_id = None
-                    end_date = None
+                    # Extract outcomes from all markets in the event
+                    outcomes = []
                     description = e.get("description", "")
-                    markets = e.get("markets", [])
-                    if markets:
-                        m = markets[0]
+                    end_date = None
+                    condition_id = None
+                    
+                    for m in e.get("markets", []):
+                        m_title = m.get("groupItemTitle") or m.get("title") or "Outcome"
+                        m_prob = 0
+                        m_token_id = None
+                        
                         try:
-                            parsed = json.loads(m.get("outcomePrices", "[]"))
-                            if parsed:
-                                prob = round(float(parsed[0]) * 100, 1)
-                        except Exception:
-                            pass
+                            prices = json.loads(m.get("outcomePrices", "[]"))
+                            if prices:
+                                m_prob = round(float(prices[0]) * 100, 1)
+                        except: pass
+                        
                         try:
                             tokens = json.loads(m.get("clobTokenIds", "[]"))
                             if tokens:
-                                token_id = tokens[0]
-                        except Exception:
-                            pass
-                        condition_id = m.get("conditionId")
-                        end_date = m.get("endDate")
-                        if not description:
-                            description = m.get("description", "")
+                                m_token_id = tokens[0]
+                        except: pass
+                        
+                        outcomes.append({
+                            "title": m_title,
+                            "probability": m_prob,
+                            "token_id": m_token_id,
+                            "condition_id": m.get("conditionId")
+                        })
+                        
+                        # Use first market for shared metadata
+                        if not end_date:
+                            end_date = m.get("endDate")
+                        if not condition_id:
+                            condition_id = m.get("conditionId")
+
+                    # Primary probability for the main dot/ticker (highest outcome or first)
+                    primary_prob = outcomes[0]["probability"] if outcomes else None
+                    if outcomes and len(outcomes) > 2:
+                        # For multi-choice, find the most likely outcome
+                        primary_prob = max(o["probability"] for o in outcomes)
 
                     all_items.append({
                         "title": title,
-                        "locations": locations,  # list of all locations
-                        "probability": prob,
+                        "locations": locations,
+                        "probability": primary_prob,
+                        "outcomes": outcomes, # All choices
                         "volume": e.get("volume", 0),
                         "liquidity": e.get("liquidity", 0),
                         "source": "Polymarket",
                         "image": e.get("image") or e.get("icon"),
                         "url": f"https://polymarket.com/event/{e.get('slug')}",
-                        "token_id": token_id,
+                        "token_id": outcomes[0]["token_id"] if outcomes else None,
                         "condition_id": condition_id,
                         "end_date": end_date,
                         "description": description,
