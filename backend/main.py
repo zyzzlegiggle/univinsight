@@ -5,7 +5,7 @@ Aggregates data from prediction markets, finance, sports, climate, and trends AP
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routers import market, finance, climate, sports, trends, news
+from routers import market, finance, climate, sports, trends, news, crypto, wiki, context
 
 app = FastAPI(
     title="UnivInsight API",
@@ -33,6 +33,9 @@ app.include_router(climate.router)
 app.include_router(sports.router)
 app.include_router(trends.router)
 app.include_router(news.router)
+app.include_router(crypto.router)
+app.include_router(wiki.router)
+app.include_router(context.router)
 
 
 @app.get("/")

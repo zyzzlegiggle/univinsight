@@ -214,7 +214,23 @@ async def get_market_headlines():
 
     # Final sort by volume to ensure we show the best ones first
     all_items.sort(key=lambda x: x.get("volume", 0), reverse=True)
-    return {"headlines": all_items[:300]} # Cap final result
+    all_items = all_items[:300]  # Cap final result
+
+    # ── Batch classify all markets (LLM + keyword fallback) ──
+    try:
+        from routers.context import llm_classify_batch
+        titles = [item["title"] for item in all_items]
+        classifications = await llm_classify_batch(titles)
+        for item, cls in zip(all_items, classifications):
+            item["categories"] = cls.get("categories", [])
+            item["entity"] = cls.get("entity", "")
+    except Exception as e:
+        print(f"[Market] Classification failed, using empty tags: {e}")
+        for item in all_items:
+            item["categories"] = []
+            item["entity"] = ""
+
+    return {"headlines": all_items}
 
 
 # ─── Price History (CLOB API) ─────────────────────────────────
