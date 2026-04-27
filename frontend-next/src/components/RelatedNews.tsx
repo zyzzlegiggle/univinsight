@@ -52,9 +52,16 @@ export default function RelatedNews({ data, isLoading }: RelatedNewsProps) {
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between mb-1">
-                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
-                  {article.site || 'News'}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
+                    {article.site || 'News'}
+                  </span>
+                  {article.published && (
+                    <span className="text-[9px] text-slate-400 font-medium">
+                      • {new Date(article.published).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    </span>
+                  )}
+                </div>
                 <ExternalLink className="w-3 h-3 text-slate-300 group-hover:text-indigo-400 transition-colors" />
               </div>
               <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 mb-1">

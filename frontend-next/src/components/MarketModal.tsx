@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { X, TrendingUp, History, Info, Newspaper } from 'lucide-react';
-import { MarketHeadline, fetchMarketTrades, fetchRelatedInfo } from '@/lib/api';
+import { MarketHeadline, fetchMarketTrades, fetchRelatedInfo, fetchTrends, TrendsResponse } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import StatsChart from './StatsChart';
 import TradeTable from './TradeTable';
 import RelatedNews from './RelatedNews';
+import WordCloud from './WordCloud';
 
 interface MarketModalProps {
   market: MarketHeadline | null;
@@ -38,8 +39,10 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
   const [activeTab, setActiveTab] = useState<Tab>('stats');
   const [tradesData, setTradesData] = useState<any>(null);
   const [newsData, setNewsData] = useState<any>(null);
+  const [trendsData, setTrendsData] = useState<TrendsResponse | null>(null);
   const [loadingTrades, setLoadingTrades] = useState(false);
   const [loadingNews, setLoadingNews] = useState(false);
+  const [loadingTrends, setLoadingTrends] = useState(false);
   const [showAllOutcomes, setShowAllOutcomes] = useState(false);
   const [minTrade, setMinTrade] = useState(0);
 
@@ -54,19 +57,29 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
         .finally(() => setLoadingTrades(false));
     }
 
-    if (activeTab === 'related' && !newsData) {
-      setLoadingNews(true);
-      fetchRelatedInfo(market.title)
-        .then(res => setNewsData(res))
-        .catch(e => console.error(e))
-        .finally(() => setLoadingNews(false));
+    if (activeTab === 'related') {
+      if (!newsData) {
+        setLoadingNews(true);
+        fetchRelatedInfo(market.title)
+          .then(res => setNewsData(res))
+          .catch(e => console.error(e))
+          .finally(() => setLoadingNews(false));
+      }
+      if (!trendsData) {
+        setLoadingTrends(true);
+        fetchTrends(market.title)
+          .then(res => setTrendsData(res))
+          .catch(e => console.error(e))
+          .finally(() => setLoadingTrends(false));
+      }
     }
-  }, [activeTab, market, isOpen]);
+  }, [activeTab, market, isOpen, newsData, trendsData, tradesData]);
 
   // Reset when market changes
   useEffect(() => {
     setTradesData(null);
     setNewsData(null);
+    setTrendsData(null);
     setActiveTab('stats');
     setShowAllOutcomes(false);
   }, [market?.condition_id]);
@@ -99,9 +112,11 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
             {/* Sticky Header */}
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 sticky top-0 z-10">
               <div className="flex items-center gap-2">
-                <span className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 uppercase">
-                  {market.source || 'Polymarket'}
-                </span>
+                <img 
+                  src="/polymarket-icon.png" 
+                  alt={market.source || 'Polymarket'} 
+                  className="h-3 w-auto object-contain rounded-[3px]" 
+                />
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">
                   VOL {fmtVol(market.volume)}
                 </span>
@@ -253,7 +268,26 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
                 )}
 
                 {activeTab === 'related' && (
-                  <RelatedNews data={newsData} isLoading={loadingNews} />
+                  <div className="space-y-6">
+                    <div>
+                      <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Search Trends</h4>
+                        {loadingTrends && <div className="w-3 h-3 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />}
+                      </div>
+                      {trendsData && trendsData.related_queries?.length > 0 ? (
+                        <WordCloud words={trendsData.related_queries} />
+                      ) : !loadingTrends && (
+                        <div className="h-32 bg-slate-50 dark:bg-slate-900/50 rounded-xl flex items-center justify-center border border-dashed border-slate-200 dark:border-slate-800 text-[10px] font-medium text-slate-400">
+                          No trending search data available
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider mb-3">Related News</h4>
+                      <RelatedNews data={newsData} isLoading={loadingNews} />
+                    </div>
+                  </div>
                 )}
               </div>
             </div>

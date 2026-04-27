@@ -54,15 +54,30 @@ export interface MarketTrades {
   trades: Trade[];
 }
 
+export interface RelatedNewsItem {
+  title: string;
+  url: string;
+  description: string;
+  image?: string;
+  site?: string;
+  published?: string;
+}
+
 export interface RelatedInfo {
-  articles: Array<{
-    title: string;
-    url: string;
-    image?: string;
-    site?: string;
-    published?: string;
-    description?: string;
-  }>;
+  articles: RelatedNewsItem[];
+  total: number;
+  query_used?: string;
+  error?: string;
+}
+
+export interface TrendsResponse {
+  location: string;
+  interest_over_time: {
+    dates: string[];
+    values: number[];
+  } | null;
+  related_queries: string[];
+  error?: string | null;
 }
 
 export async function fetchHeadlines(): Promise<MarketHeadline[]> {
@@ -83,7 +98,10 @@ export async function fetchMarketTrades(conditionId: string, tokenId: string): P
   return fetchJSON<MarketTrades>(`${API_BASE}/market/trades?${params}`);
 }
 
-export async function fetchRelatedInfo(query: string): Promise<RelatedInfo> {
-  const params = new URLSearchParams({ q: query });
-  return fetchJSON<RelatedInfo>(`${API_BASE}/news/related?${params}`);
+export async function fetchRelatedInfo(marketTitle: string): Promise<RelatedInfo> {
+  return fetchJSON<RelatedInfo>(`${API_BASE}/news/related?q=${encodeURIComponent(marketTitle)}`);
+}
+
+export async function fetchTrends(query: string): Promise<TrendsResponse> {
+  return fetchJSON<TrendsResponse>(`${API_BASE}/trends?location=${encodeURIComponent(query)}`);
 }

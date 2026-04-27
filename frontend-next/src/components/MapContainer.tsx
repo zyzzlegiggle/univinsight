@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { MarketHeadline } from '@/lib/api';
 import { useTheme } from 'next-themes';
 
@@ -35,28 +36,29 @@ function getPopupHTML(p: any): string {
   const vol = p.volume ? fmtVol(Number(p.volume)) : '$0';
   return `
     <div style="padding:12px;max-width:280px;font-family:Inter,sans-serif;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-        <span style="font-size:9px;font-weight:700;text-transform:uppercase;color:#4f46e5;">
-          ${p.source || 'Polymarket'}
-        </span>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+        <img src="/polymarket-icon.png" style="height:12px;width:auto;object-fit:contain;border-radius:3px;" alt="Polymarket" />
         <span style="font-size:9px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:0.5px">VOL ${vol}</span>
       </div>
       ${p.image && p.image !== 'null' ? `<img src="${p.image}" style="width:100%;height:100px;object-fit:cover;border-radius:6px;margin-bottom:6px" />` : ''}
       <div style="font-size:13px;font-weight:600;color:#1e293b;line-height:1.4;margin-bottom:6px">${p.title}</div>
-      <div style="display:flex;height:4px;border-radius:2px;overflow:hidden;margin-bottom:6px">
+      <div style="display:flex;height:4px;border-radius:2px;overflow:hidden;margin-bottom:8px">
         <div style="width:${p.probability || 0}%;background:#22c55e;height:100%"></div>
         <div style="width:${100 - (p.probability || 0)}%;background:#ef4444;height:100%"></div>
       </div>
-      <div style="display:flex;gap:6px">
-        <span style="padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.2)">
+      <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
+        <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.2)">
           ${p.top_outcome || 'Yes'} ${p.probability || 0}%
         </span>
-        <span style="padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">
+        <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">
           No ${Math.round((100 - (p.probability || 0)) * 10) / 10}%
         </span>
-        <span style="padding:2px 6px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(148,163,184,0.1);color:#94a3b8;border:1px solid rgba(148,163,184,0.2);margin-left:auto">
+        <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(148,163,184,0.1);color:#94a3b8;border:1px solid rgba(148,163,184,0.2)">
           ${fmtCountdown(p.end_date)}
         </span>
+        <a href="${p.url}" target="_blank" rel="noopener noreferrer" style="margin-left:auto;padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;background:#4f46e5;color:#ffffff;text-decoration:none;display:flex;align-items:center;gap:4px;">
+          VIEW →
+        </a>
       </div>
     </div>
   `;
@@ -97,123 +99,111 @@ async function geocode(query: string) {
   return null;
 }
 
-import 'mapbox-gl/dist/mapbox-gl.css';
+const STYLE_DARK = 'mapbox://styles/mapbox/dark-v11';
+const STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';
 
 // ─── Component ───────────────────────────────────────
 export default function MapContainer({ markets, onMarketClick, selectedMarketId }: MapContainerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
-  const popup = useRef<mapboxgl.Popup | null>(null);
+  const hoverPopup = useRef<mapboxgl.Popup | null>(null);
+  const pinnedPopup = useRef<mapboxgl.Popup | null>(null);
   const [mounted, setMounted] = useState(false);
   const [isReady, setIsReady] = useState(false);
   const { resolvedTheme } = useTheme();
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  useEffect(() => { setMounted(true); }, []);
 
-  // Use refs for data that needs to survive style changes
   const marketsRef = useRef(markets);
   marketsRef.current = markets;
   const onMarketClickRef = useRef(onMarketClick);
   onMarketClickRef.current = onMarketClick;
 
-  // Store the last-built GeoJSON so we can replay it after style changes
   const lastGeoJsonRef = useRef<any>({ type: 'FeatureCollection', features: [] });
-
   const currentTheme = resolvedTheme || 'light';
   const themeRef = useRef(currentTheme);
   themeRef.current = currentTheme;
+  const lastStyleRef = useRef<string>(currentTheme === 'dark' ? STYLE_DARK : STYLE_LIGHT);
 
-  // ─── Add sources + layers to the map ───
-  function addLayersToMap(m: mapboxgl.Map) {
-    if (!m || !m.isStyleLoaded()) return;
-    if (m.getSource('markets')) return; 
+  // ─── Ref-based replay function ───
+  const replayLayersRef = useRef<(m: mapboxgl.Map) => void>(() => {});
+  replayLayersRef.current = (m: mapboxgl.Map) => {
+    try {
+      if (m.getLayer('connection-lines')) m.removeLayer('connection-lines');
+      if (m.getLayer('market-dots')) m.removeLayer('market-dots');
+      if (m.getSource('connections')) m.removeSource('connections');
+      if (m.getSource('markets')) m.removeSource('markets');
 
-    m.addSource('markets', {
-      type: 'geojson',
-      data: lastGeoJsonRef.current,
-    });
-    m.addLayer({
-      id: 'market-dots',
-      type: 'circle',
-      source: 'markets',
-      paint: {
-        'circle-radius': 6,
-        'circle-color': '#3b82f6',
-        'circle-stroke-width': 2,
-        'circle-stroke-color': '#ffffff',
-      },
-    });
+      m.addSource('markets', { type: 'geojson', data: lastGeoJsonRef.current });
+      m.addLayer({
+        id: 'market-dots',
+        type: 'circle',
+        source: 'markets',
+        paint: {
+          'circle-radius': 6,
+          'circle-color': '#3b82f6',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+      });
 
-    m.addSource('connections', {
-      type: 'geojson',
-      data: { type: 'FeatureCollection', features: [] },
-    });
-    m.addLayer({
-      id: 'connection-lines',
-      type: 'line',
-      source: 'connections',
-      paint: { 'line-color': '#4f46e5', 'line-width': 2, 'line-opacity': 0.7 },
-    }, 'market-dots');
-  }
+      m.addSource('connections', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      m.addLayer({
+        id: 'connection-lines',
+        type: 'line',
+        source: 'connections',
+        paint: { 'line-color': '#4f46e5', 'line-width': 2, 'line-opacity': 0.7 },
+      }, 'market-dots');
 
-  // ─── Apply fog based on theme ───
-  function applyFog(m: mapboxgl.Map) {
-    if (!m || !m.isStyleLoaded()) return;
-    const dark = themeRef.current === 'dark';
-    m.setFog({
-      color: dark ? 'rgb(15, 23, 42)' : 'rgb(255,255,255)',
-      'high-color': dark ? 'rgb(30, 41, 59)' : 'rgb(200,230,255)',
-      'horizon-blend': 0.05,
-      'space-color': dark ? 'rgb(2, 6, 23)' : 'rgb(240,245,255)',
-      'star-intensity': dark ? 0.35 : 0,
-    });
-  }
+      const dark = themeRef.current === 'dark';
+      m.setFog({
+        color: dark ? 'rgb(15, 23, 42)' : 'rgb(255,255,255)',
+        'high-color': dark ? 'rgb(30, 41, 59)' : 'rgb(200,230,255)',
+        'horizon-blend': 0.05,
+        'space-color': dark ? 'rgb(2, 6, 23)' : 'rgb(240,245,255)',
+        'star-intensity': dark ? 0.35 : 0,
+      });
+    } catch (e) {
+      console.warn('[Map] replayLayers error:', e);
+    }
+  };
 
-  // ─── One-time map initialization ───
+  // ─── Initialization ───
   useEffect(() => {
     if (!mounted || !mapContainer.current || map.current) return;
 
-    try {
-      const m = new mapboxgl.Map({
-        container: mapContainer.current,
-        style: currentTheme === 'dark' ? 'mapbox://styles/mapbox/dark-v11' : 'mapbox://styles/mapbox/streets-v12',
-        center: [0, 20],
-        zoom: 2,
-        antialias: true,
-        projection: { name: 'globe' },
-      });
-      map.current = m;
-
-      m.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
-      m.addControl(new mapboxgl.FullscreenControl(), 'top-right');
-      popup.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
-
-    // This fires on EVERY style load (initial + theme switches)
-    m.on('style.load', () => {
-      addLayersToMap(m);
-      applyFog(m);
-
-      // Push stored data into the fresh source
-      const src = m.getSource('markets') as mapboxgl.GeoJSONSource;
-      if (src) src.setData(lastGeoJsonRef.current);
+    const m = new mapboxgl.Map({
+      container: mapContainer.current,
+      style: currentTheme === 'dark' ? STYLE_DARK : STYLE_LIGHT,
+      center: [0, 20],
+      zoom: 2,
+      antialias: true,
+      projection: { name: 'globe' },
     });
+    map.current = m;
 
-    // Hover → popup
+    m.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
+    m.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+    
+    // Create two independent popups
+    hoverPopup.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
+    pinnedPopup.current = new mapboxgl.Popup({ closeButton: true, closeOnClick: false, offset: 15 });
+
+    // Hover listeners
     m.on('mouseenter', 'market-dots', (e) => {
       if (!e.features?.length) return;
       m.getCanvas().style.cursor = 'pointer';
       const p = e.features[0].properties as any;
       const c = (e.features[0].geometry as any).coordinates.slice();
-      popup.current?.setLngLat(c).setHTML(getPopupHTML(p)).addTo(m);
-    });
-    m.on('mouseleave', 'market-dots', () => {
-      m.getCanvas().style.cursor = '';
-      popup.current?.remove();
+      hoverPopup.current?.setLngLat(c).setHTML(getPopupHTML(p)).addTo(m);
     });
 
-    // Click dot → open modal + fly + connection lines
+    m.on('mouseleave', 'market-dots', () => {
+      m.getCanvas().style.cursor = '';
+      hoverPopup.current?.remove();
+    });
+
+    // Click dot listener
     m.on('click', 'market-dots', (e) => {
       if (!e.features?.length) return;
       const feature = e.features[0];
@@ -225,7 +215,11 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
       onMarketClickRef.current(mkt, coords);
       m.flyTo({ center: coords, zoom: 4, duration: 1200 });
 
-      // Connection lines between sibling locations
+      // Persistent pinned popup
+      pinnedPopup.current?.setLngLat(coords).setHTML(getPopupHTML(props)).addTo(m);
+      // Remove hover popup to avoid overlap
+      hoverPopup.current?.remove();
+
       const data = lastGeoJsonRef.current;
       if (data?.features) {
         const siblings = data.features.filter((f: any) => f.properties.market_id === props.market_id);
@@ -241,26 +235,25 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
       }
     });
 
-    // Click empty → clear connection lines
+    // Click background listener
     m.on('click', (e) => {
       if (!m.getLayer('market-dots')) return;
       const features = m.queryRenderedFeatures(e.point, { layers: ['market-dots'] });
       if (!features.length) {
+        pinnedPopup.current?.remove();
         const connSrc = m.getSource('connections') as mapboxgl.GeoJSONSource;
         if (connSrc) connSrc.setData({ type: 'FeatureCollection', features: [] });
       }
     });
 
-      m.on('load', () => {
-        setIsReady(true);
-      });
-
-    } catch (err) {
-      console.error('Mapbox init error:', err);
-    }
+    m.on('load', () => {
+      replayLayersRef.current(m);
+      setIsReady(true);
+    });
 
     return () => {
-      popup.current?.remove();
+      hoverPopup.current?.remove();
+      pinnedPopup.current?.remove();
       if (map.current) {
         map.current.remove();
         map.current = null;
@@ -269,28 +262,28 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
-  // ─── Theme switch: just swap the style, style.load handles the rest ───
+  // ─── Theme Effect ───
   useEffect(() => {
     if (!map.current || !isReady) return;
-    const style = currentTheme === 'dark'
-      ? 'mapbox://styles/mapbox/dark-v11'
-      : 'mapbox://styles/mapbox/streets-v12';
-    map.current.setStyle(style);
+    const m = map.current;
+    const style = currentTheme === 'dark' ? STYLE_DARK : STYLE_LIGHT;
+    if (lastStyleRef.current === style) {
+      replayLayersRef.current(m);
+      return;
+    }
+    lastStyleRef.current = style;
+    m.once('style.load', () => replayLayersRef.current(m));
+    m.setStyle(style);
   }, [currentTheme, isReady]);
 
-  // ─── Geocode + plot markets whenever market data changes ───
+  // ─── Data Effect ───
   useEffect(() => {
     if (!isReady || !map.current) return;
-
     (async () => {
       const cache: Record<string, [number, number]> = JSON.parse(localStorage.getItem(GEO_CACHE_KEY) || '{}');
       let updated = false;
-
-      // Collect unique locations
       const uniqueLocs = new Set<string>();
       markets.forEach(m => (m.locations || []).forEach(l => uniqueLocs.add(l)));
-
-      // Geocode missing ones
       for (const loc of Array.from(uniqueLocs)) {
         if (!cache[loc]) {
           const coords = await geocode(loc);
@@ -299,60 +292,41 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
       }
       if (updated) localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(cache));
 
-      // Build GeoJSON features
       const features: any[] = [];
       let mktId = 0;
       for (const m of markets) {
         const locs = m.locations || [];
         const coordsList = locs.map(l => cache[l]).filter(Boolean);
         if (!coordsList.length) continue;
-
         const id = `mkt_${mktId++}`;
         const topOutcome = m.outcomes && m.outcomes.length > 2
           ? m.outcomes.reduce((prev, cur) => prev.probability > cur.probability ? prev : cur).title
           : 'Yes';
-
         for (const coords of coordsList) {
-          const jitter = coordsList.length > 1
-            ? [(Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3]
-            : [0, 0];
+          const jitter = coordsList.length > 1 ? [(Math.random() - 0.5) * 0.3, (Math.random() - 0.5) * 0.3] : [0, 0];
           features.push({
             type: 'Feature',
             geometry: { type: 'Point', coordinates: [coords[0] + jitter[0], coords[1] + jitter[1]] },
             properties: {
-              title: m.title,
-              market_id: id,
-              probability: m.probability,
-              volume: m.volume,
-              image: m.image,
-              source: m.source,
-              end_date: m.end_date,
-              top_outcome: topOutcome,
+              title: m.title, market_id: id, probability: m.probability,
+              volume: m.volume, image: m.image, source: m.source,
+              end_date: m.end_date, top_outcome: topOutcome,
+              url: m.url,
             },
           });
         }
       }
-
-      // Store it and push to the live source
       const geoJson = { type: 'FeatureCollection', features };
       lastGeoJsonRef.current = geoJson;
-
-      // Ensure layers exist before setting data
-      if (map.current) {
-        addLayersToMap(map.current);
-        const src = map.current.getSource('markets') as mapboxgl.GeoJSONSource;
-        if (src) src.setData(geoJson as any);
-      }
+      const src = map.current?.getSource('markets') as mapboxgl.GeoJSONSource;
+      if (src) src.setData(geoJson as any);
+      else if (map.current) replayLayersRef.current(map.current);
     })();
   }, [markets, isReady]);
 
   return (
     <div className="relative w-full h-full min-h-[400px]">
-      <div 
-        ref={mapContainer} 
-        className="w-full h-full" 
-        style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} 
-      />
+      <div ref={mapContainer} className="w-full h-full" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
     </div>
   );
 }
