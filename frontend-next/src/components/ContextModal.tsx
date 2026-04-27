@@ -1,13 +1,14 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Newspaper, TrendingUp, Info } from 'lucide-react';
+import { Newspaper, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   MarketHeadline, fetchRelatedInfo, fetchTrends, TrendsResponse,
   fetchCrypto, fetchClimate, fetchSports, fetchFinance, fetchWiki,
   CryptoData, ClimateData, SportsData, FinanceData, WikiData,
 } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
 import RelatedNews from './RelatedNews';
 import WordCloud from './WordCloud';
 import SparkChart from './SparkChart';
@@ -31,20 +32,53 @@ function PctBadge({ val }: { val: number | null | undefined }) {
   return <span className={`text-[10px] font-bold ${color}`}>{val >= 0 ? '+' : ''}{val.toFixed(1)}%</span>;
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
   return (
-    <div className="mb-8 last:mb-0">
-      <div className="flex items-center gap-2 mb-4">
-        <div className="h-[2px] w-4 bg-indigo-500 rounded-full" />
-        <h4 className="text-[11px] font-extrabold text-slate-400 uppercase tracking-widest">{title}</h4>
-      </div>
-      {children}
+    <div className="mb-6 last:mb-0 border-b border-slate-100 dark:border-slate-800/50 pb-6 last:border-0 last:pb-0">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="flex items-center justify-between w-full mb-4 group hover:opacity-80 transition-opacity"
+      >
+        <div className="flex items-center gap-2">
+          <div className="h-[2px] w-3 bg-indigo-500 rounded-full" />
+          <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-widest group-hover:text-slate-600 dark:group-hover:text-slate-300 transition-colors">{title}</h4>
+        </div>
+        {isOpen ? <ChevronUp className="w-3 h-3 text-slate-300" /> : <ChevronDown className="w-3 h-3 text-slate-300" />}
+      </button>
+      
+      <AnimatePresence initial={false}>
+        {isOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: 'easeInOut' }}
+            className="overflow-hidden"
+          >
+            {children}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
 
-function Skeleton() {
-  return <div className="h-32 bg-slate-100 dark:bg-slate-800/50 rounded-2xl animate-pulse" />;
+function FullModalSkeleton() {
+  return (
+    <div className="flex-1 overflow-y-auto p-6 space-y-8 animate-pulse">
+      {[1, 2, 3].map(i => (
+        <div key={i} className="space-y-4">
+          <div className="flex items-center gap-2">
+            <div className="h-0.5 w-3 bg-slate-200 dark:bg-slate-800 rounded-full" />
+            <div className="h-3 w-32 bg-slate-200 dark:bg-slate-800 rounded" />
+          </div>
+          <div className="h-40 bg-slate-100 dark:bg-slate-800/50 rounded-2xl w-full" />
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function ContextModal({ market, isOpen }: ContextModalProps) {
@@ -55,36 +89,38 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
   const [sportsData, setSportsData] = useState<SportsData | null>(null);
   const [financeData, setFinanceData] = useState<FinanceData | null>(null);
   const [wikiData, setWikiData] = useState<WikiData | null>(null);
-  const [loadingNews, setLoadingNews] = useState(false);
-  const [loadingTrends, setLoadingTrends] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [contextFetched, setContextFetched] = useState(false);
 
   useEffect(() => {
     if (!market || !isOpen || contextFetched) return;
     setContextFetched(true);
+    setIsLoading(true);
 
     const cats = market.categories || [];
     const entity = market.entity || '';
 
-    // Main related info
-    setLoadingNews(true);
-    fetchRelatedInfo(market.title).then(setNewsData).catch(() => { }).finally(() => setLoadingNews(false));
-    
-    setLoadingTrends(true);
-    fetchTrends(market.title).then(setTrendsData).catch(() => { }).finally(() => setLoadingTrends(false));
+    const promises: Promise<any>[] = [
+      fetchRelatedInfo(market.title).then(setNewsData).catch(() => {}),
+      fetchTrends(market.title).then(setTrendsData).catch(() => {}),
+    ];
 
-    // Category specific
-    if (cats.includes('crypto')) fetchCrypto(market.title).then(setCryptoData).catch(() => { });
+    if (cats.includes('crypto')) promises.push(fetchCrypto(market.title).then(setCryptoData).catch(() => {}));
     if (cats.includes('climate')) {
       const loc = market.locations?.[0] || entity;
-      fetchClimate(40, -100, loc).then(setClimateData).catch(() => { });
+      promises.push(fetchClimate(40, -100, loc).then(setClimateData).catch(() => {}));
     }
     if (cats.includes('sports')) {
       const loc = entity || market.locations?.[0] || '';
-      fetchSports(loc).then(setSportsData).catch(() => { });
+      promises.push(fetchSports(loc).then(setSportsData).catch(() => {}));
     }
-    if (cats.includes('finance')) fetchFinance(entity).then(setFinanceData).catch(() => { });
-    if (entity) fetchWiki(entity).then(setWikiData).catch(() => { });
+    if (cats.includes('finance')) promises.push(fetchFinance(entity).then(setFinanceData).catch(() => {}));
+    if (entity) promises.push(fetchWiki(entity).then(setWikiData).catch(() => {}));
+
+    Promise.allSettled(promises).then(() => {
+      // Add a slight delay for smooth transition
+      setTimeout(() => setIsLoading(false), 400);
+    });
   }, [market, isOpen, contextFetched]);
 
   useEffect(() => {
@@ -113,16 +149,23 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
               <span className="text-[11px] font-black uppercase tracking-tighter text-slate-900 dark:text-white">Related Intelligence</span>
             </div>
             <div className="flex gap-1">
-              <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse delay-75" />
+              <div className={cn("w-1.5 h-1.5 rounded-full bg-green-500", isLoading ? "animate-ping" : "animate-pulse")} />
+              <div className={cn("w-1.5 h-1.5 rounded-full bg-indigo-500", isLoading ? "animate-ping" : "animate-pulse")} />
             </div>
           </div>
 
           {/* Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-10 custom-scrollbar">
-            {/* Wikipedia / Background */}
-            {wikiData?.found && wikiData.extract && (
-              <Section title="Market Context">
+          {isLoading ? (
+            <FullModalSkeleton />
+          ) : (
+            <motion.div 
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="flex-1 overflow-y-auto p-6 space-y-10 custom-scrollbar"
+            >
+              {/* Wikipedia / Background */}
+              {wikiData?.found && wikiData.extract && (
+                <Section title="Market Context">
                 <div className="bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-5 border border-slate-200/50 dark:border-slate-700/50">
                   {wikiData.thumbnail && <img src={wikiData.thumbnail} className="w-full h-32 object-cover rounded-xl mb-4 shadow-sm" alt="" />}
                   <div className="text-[14px] font-bold text-slate-900 dark:text-white mb-2">{wikiData.title}</div>
@@ -232,7 +275,7 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
 
             {/* Search Trends */}
             <Section title="Social & Search Trends">
-              {loadingTrends ? <Skeleton /> : trendsData && trendsData.related_queries?.length > 0 ? (
+              {trendsData && trendsData.related_queries?.length > 0 ? (
                 <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50">
                   <WordCloud words={trendsData.related_queries} />
                 </div>
@@ -245,9 +288,10 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
 
             {/* News */}
             <Section title="Related News Intelligence">
-              <RelatedNews data={newsData} isLoading={loadingNews} />
+              <RelatedNews data={newsData} isLoading={false} />
             </Section>
-          </div>
+          </motion.div>
+          )}
         </motion.div>
       )}
     </AnimatePresence>

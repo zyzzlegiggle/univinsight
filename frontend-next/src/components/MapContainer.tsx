@@ -324,6 +324,26 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
     })();
   }, [markets, isReady]);
 
+  useEffect(() => {
+    if (!isReady || !map.current || !selectedMarketId || !lastGeoJsonRef.current) return;
+    
+    // Find the market in the current GeoJSON features
+    const feature = lastGeoJsonRef.current.features.find((f: any) => 
+      markets.find(m => m.condition_id === selectedMarketId)?.title === f.properties.title
+    );
+
+    if (feature && feature.geometry.type === 'Point') {
+      const coords = feature.geometry.coordinates as [number, number];
+      map.current.flyTo({
+        center: coords,
+        zoom: 6,
+        pitch: 45,
+        duration: 2500,
+        essential: true
+      });
+    }
+  }, [selectedMarketId, isReady, markets]);
+
   return (
     <div className="relative w-full h-full min-h-[400px]">
       <div ref={mapContainer} className="w-full h-full" style={{ position: 'absolute', top: 0, bottom: 0, left: 0, right: 0 }} />
