@@ -12,6 +12,7 @@ import { fetchHeadlines, MarketHeadline } from '@/lib/api';
 export default function Home() {
   const [markets, setMarkets] = useState<MarketHeadline[]>([]);
   const [selectedMarket, setSelectedMarket] = useState<MarketHeadline | null>(null);
+  const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
@@ -34,13 +35,15 @@ export default function Home() {
     loadData();
   }, []);
 
-  const handleMarketClick = useCallback((market: MarketHeadline) => {
+  const handleMarketClick = useCallback((market: MarketHeadline, coords?: [number, number]) => {
     setSelectedMarket(market);
+    setSelectedCoords(coords || null);
     setIsModalOpen(true);
   }, []);
 
   const handleMarketSelect = useCallback((market: MarketHeadline) => {
     setSelectedMarket(market);
+    setSelectedCoords(null);
     setIsModalOpen(true);
   }, []);
 
@@ -59,6 +62,7 @@ export default function Home() {
           markets={filteredMarkets}
           onMarketClick={handleMarketClick}
           selectedMarketId={selectedMarket?.condition_id || null}
+          selectedCoords={selectedCoords}
         />
 
         <MarketModal

@@ -10,6 +10,7 @@ interface MapContainerProps {
   markets: MarketHeadline[];
   onMarketClick: (market: MarketHeadline, coords: [number, number]) => void;
   selectedMarketId: string | null;
+  selectedCoords?: [number, number] | null;
 }
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -103,7 +104,7 @@ const STYLE_DARK = 'mapbox://styles/mapbox/dark-v11';
 const STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';
 
 // ─── Component ───────────────────────────────────────
-export default function MapContainer({ markets, onMarketClick, selectedMarketId }: MapContainerProps) {
+export default function MapContainer({ markets, onMarketClick, selectedMarketId, selectedCoords }: MapContainerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const hoverPopup = useRef<mapboxgl.Popup | null>(null);
@@ -327,22 +328,28 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
   useEffect(() => {
     if (!isReady || !map.current || !selectedMarketId || !lastGeoJsonRef.current) return;
     
-    // Find the market in the current GeoJSON features
-    const feature = lastGeoJsonRef.current.features.find((f: any) => 
-      markets.find(m => m.condition_id === selectedMarketId)?.title === f.properties.title
-    );
+    let targetCoords = selectedCoords;
 
-    if (feature && feature.geometry.type === 'Point') {
-      const coords = feature.geometry.coordinates as [number, number];
+    if (!targetCoords) {
+      // Find the market in the current GeoJSON features
+      const feature = lastGeoJsonRef.current.features.find((f: any) => 
+        markets.find(m => m.condition_id === selectedMarketId)?.title === f.properties.title
+      );
+      if (feature && feature.geometry.type === 'Point') {
+        targetCoords = feature.geometry.coordinates as [number, number];
+      }
+    }
+
+    if (targetCoords) {
       map.current.flyTo({
-        center: coords,
+        center: targetCoords,
         zoom: 6,
         pitch: 45,
         duration: 2500,
         essential: true
       });
     }
-  }, [selectedMarketId, isReady, markets]);
+  }, [selectedMarketId, selectedCoords, isReady, markets]);
 
   return (
     <div className="relative w-full h-full min-h-[400px]">
