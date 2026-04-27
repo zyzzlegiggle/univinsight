@@ -14,6 +14,7 @@ export default function Home() {
   const [selectedMarket, setSelectedMarket] = useState<MarketHeadline | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isContextOpen, setIsContextOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('Initializing Map...');
@@ -39,12 +40,14 @@ export default function Home() {
     setSelectedMarket(market);
     setSelectedCoords(coords || null);
     setIsModalOpen(true);
+    setIsContextOpen(false);
   }, []);
 
   const handleMarketSelect = useCallback((market: MarketHeadline) => {
     setSelectedMarket(market);
     setSelectedCoords(null);
     setIsModalOpen(true);
+    setIsContextOpen(false);
   }, []);
 
   const filteredMarkets = searchQuery.trim()
@@ -68,12 +71,14 @@ export default function Home() {
         <MarketModal
           market={selectedMarket}
           isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setSelectedMarket(null); }}
+          onClose={() => { setIsModalOpen(false); setIsContextOpen(false); setSelectedMarket(null); }}
+          onAnalyze={() => setIsContextOpen(true)}
+          isContextOpen={isContextOpen}
         />
 
         <ContextModal
           market={selectedMarket}
-          isOpen={isModalOpen}
+          isOpen={isContextOpen}
         />
       </div>
     </main>

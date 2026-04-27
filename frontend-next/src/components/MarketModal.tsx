@@ -19,6 +19,8 @@ interface MarketModalProps {
   market: MarketHeadline | null;
   isOpen: boolean;
   onClose: () => void;
+  onAnalyze: () => void;
+  isContextOpen: boolean;
 }
 
 type Tab = 'stats' | 'trades' | 'rules';
@@ -68,7 +70,7 @@ function Skeleton() {
   return <div className="h-24 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />;
 }
 
-export default function MarketModal({ market, isOpen, onClose }: MarketModalProps) {
+export default function MarketModal({ market, isOpen, onClose, onAnalyze, isContextOpen }: MarketModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('stats');
   const [tradesData, setTradesData] = useState<any>(null);
   const [loadingTrades, setLoadingTrades] = useState(false);
@@ -119,9 +121,19 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
                 <img src="/polymarket-icon.png" alt={market.source || 'Polymarket'} className="h-3 w-auto object-contain rounded-[3px]" />
                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">VOL {fmtVol(market.volume)}</span>
               </div>
-              <button onClick={onClose} className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors text-slate-400">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex items-center gap-2">
+                {!isContextOpen && (
+                  <button 
+                    onClick={onAnalyze}
+                    className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all hover:scale-[1.05] active:scale-[0.95] flex items-center gap-1 shadow-sm"
+                  >
+                    Analyze
+                  </button>
+                )}
+                <button onClick={onClose} className="w-7 h-7 rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center hover:bg-red-50 hover:border-red-200 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors text-slate-400">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
             </div>
 
             {/* Body */}
