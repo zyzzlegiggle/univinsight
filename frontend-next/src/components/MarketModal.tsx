@@ -21,7 +21,7 @@ interface MarketModalProps {
   onClose: () => void;
 }
 
-type Tab = 'stats' | 'trades' | 'rules' | 'related';
+type Tab = 'stats' | 'trades' | 'rules';
 
 function fmtVol(val?: number) {
   const n = Number(val || 0);
@@ -71,64 +71,23 @@ function Skeleton() {
 export default function MarketModal({ market, isOpen, onClose }: MarketModalProps) {
   const [activeTab, setActiveTab] = useState<Tab>('stats');
   const [tradesData, setTradesData] = useState<any>(null);
-  const [newsData, setNewsData] = useState<any>(null);
-  const [trendsData, setTrendsData] = useState<TrendsResponse | null>(null);
-  const [cryptoData, setCryptoData] = useState<CryptoData | null>(null);
-  const [climateData, setClimateData] = useState<ClimateData | null>(null);
-  const [sportsData, setSportsData] = useState<SportsData | null>(null);
-  const [financeData, setFinanceData] = useState<FinanceData | null>(null);
-  const [wikiData, setWikiData] = useState<WikiData | null>(null);
   const [loadingTrades, setLoadingTrades] = useState(false);
-  const [loadingNews, setLoadingNews] = useState(false);
-  const [loadingTrends, setLoadingTrends] = useState(false);
-  const [contextFetched, setContextFetched] = useState(false);
   const [showAllOutcomes, setShowAllOutcomes] = useState(false);
   const [minTrade, setMinTrade] = useState(0);
-
-  // Fetch contextual data using pre-computed categories from market data
-  useEffect(() => {
-    if (!market || !isOpen || contextFetched) return;
-    setContextFetched(true);
-    const cats = market.categories || [];
-    const entity = market.entity || '';
-    if (cats.includes('crypto')) fetchCrypto(market.title).then(setCryptoData).catch(() => {});
-    if (cats.includes('climate')) {
-      const loc = market.locations?.[0] || entity;
-      fetchClimate(40, -100, loc).then(setClimateData).catch(() => {});
-    }
-    if (cats.includes('sports')) {
-      const loc = entity || market.locations?.[0] || '';
-      fetchSports(loc).then(setSportsData).catch(() => {});
-    }
-    if (cats.includes('finance')) fetchFinance(entity).then(setFinanceData).catch(() => {});
-    if (entity) fetchWiki(entity).then(setWikiData).catch(() => {});
-  }, [market, isOpen, contextFetched]);
 
   useEffect(() => {
     if (!market || !isOpen) return;
     if (activeTab === 'trades' && !tradesData) {
       setLoadingTrades(true);
       fetchMarketTrades(market.condition_id || '', market.token_id || '')
-        .then(res => setTradesData(res)).catch(() => {}).finally(() => setLoadingTrades(false));
+        .then(res => setTradesData(res)).catch(() => { }).finally(() => setLoadingTrades(false));
     }
-    if (activeTab === 'related') {
-      if (!newsData) {
-        setLoadingNews(true);
-        fetchRelatedInfo(market.title).then(res => setNewsData(res)).catch(() => {}).finally(() => setLoadingNews(false));
-      }
-      if (!trendsData) {
-        setLoadingTrends(true);
-        fetchTrends(market.title).then(res => setTrendsData(res)).catch(() => {}).finally(() => setLoadingTrends(false));
-      }
-    }
-  }, [activeTab, market, isOpen, newsData, trendsData, tradesData]);
+  }, [activeTab, market, isOpen, tradesData]);
 
   useEffect(() => {
-    setTradesData(null); setNewsData(null); setTrendsData(null);
-    setCryptoData(null); setClimateData(null);
-    setSportsData(null); setFinanceData(null); setWikiData(null);
-    setContextFetched(false);
-    setActiveTab('stats'); setShowAllOutcomes(false);
+    setTradesData(null);
+    setActiveTab('stats');
+    setShowAllOutcomes(false);
   }, [market?.condition_id]);
 
   if (!market) return null;
@@ -141,7 +100,6 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
     { id: 'stats', label: 'Stats', icon: TrendingUp },
     { id: 'trades', label: 'Trades', icon: History },
     { id: 'rules', label: 'Rules', icon: Info },
-    { id: 'related', label: 'Related Info', icon: Newspaper },
   ];
 
   const categories = market.categories || [];
@@ -167,7 +125,7 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
             </div>
 
             {/* Body */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
               {market.image && <img src={market.image} alt="" className="w-full h-40 object-cover" />}
               <h3 className="text-[15px] font-bold text-slate-900 dark:text-slate-100 leading-snug px-5 pt-4">{market.title}</h3>
 
@@ -276,149 +234,6 @@ export default function MarketModal({ market, isOpen, onClose }: MarketModalProp
                 {activeTab === 'rules' && (
                   <div className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed whitespace-pre-line">
                     {market.description || 'No rules available for this market.'}
-                  </div>
-                )}
-
-                {activeTab === 'related' && (
-                  <div className="space-y-6">
-                    {/* Crypto Section */}
-                    {cryptoData?.found && cryptoData.summary && (
-                      <Section title={`${cryptoData.summary.name} (${cryptoData.summary.symbol})`}>
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                          <div className="flex items-center gap-3 mb-3">
-                            {cryptoData.summary.image && <img src={cryptoData.summary.image} className="w-8 h-8 rounded-full" alt="" />}
-                            <div>
-                              <div className="text-lg font-bold text-slate-900 dark:text-white">{fmtPrice(cryptoData.summary.current_price)}</div>
-                              <div className="flex gap-2">
-                                <span className="text-[9px] text-slate-400">24h</span><PctBadge val={cryptoData.summary.price_change_24h} />
-                                <span className="text-[9px] text-slate-400">7d</span><PctBadge val={cryptoData.summary.price_change_7d} />
-                                <span className="text-[9px] text-slate-400">30d</span><PctBadge val={cryptoData.summary.price_change_30d} />
-                              </div>
-                            </div>
-                          </div>
-                          {cryptoData.sparkline && cryptoData.sparkline.length > 2 && (
-                            <div className="mt-4">
-                              <SparkChart 
-                                data={cryptoData.sparkline} 
-                                color="#4f46e5" 
-                                height={60} 
-                                prefix="$"
-                              />
-                            </div>
-                          )}
-                          <div className="grid grid-cols-3 gap-2 mt-3 text-[10px]">
-                            <div><span className="text-slate-400">MCap</span><br /><span className="font-bold text-slate-700 dark:text-slate-200">{fmtPrice(cryptoData.summary.market_cap)}</span></div>
-                            <div><span className="text-slate-400">Vol 24h</span><br /><span className="font-bold text-slate-700 dark:text-slate-200">{fmtPrice(cryptoData.summary.total_volume)}</span></div>
-                            <div><span className="text-slate-400">ATH</span><br /><span className="font-bold text-slate-700 dark:text-slate-200">{fmtPrice(cryptoData.summary.ath)}</span></div>
-                          </div>
-                        </div>
-                      </Section>
-                    )}
-
-                    {/* Climate Section */}
-                    {climateData?.current && (
-                      <Section title="Weather & Climate">
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                          <div className="grid grid-cols-2 gap-3 text-[11px]">
-                            <div><span className="text-slate-400">Temperature</span><br /><span className="text-xl font-bold text-slate-900 dark:text-white">{climateData.current.temperature}C</span></div>
-                            <div><span className="text-slate-400">Feels Like</span><br /><span className="text-xl font-bold text-slate-900 dark:text-white">{climateData.current.feels_like}C</span></div>
-                            <div><span className="text-slate-400">Humidity</span><br /><span className="font-bold text-slate-700 dark:text-slate-200">{climateData.current.humidity}%</span></div>
-                            <div><span className="text-slate-400">Wind</span><br /><span className="font-bold text-slate-700 dark:text-slate-200">{climateData.current.wind_speed} km/h</span></div>
-                          </div>
-                          {climateData.forecast && (
-                            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                              <div className="text-[9px] font-bold text-slate-400 uppercase mb-3">7-Day High Temp Forecast</div>
-                              <SparkChart 
-                                data={climateData.forecast.temp_max} 
-                                labels={climateData.forecast.dates.map(d => new Date(d).toLocaleDateString('en', { weekday: 'short' }))}
-                                color="#f97316" 
-                                height={50}
-                                prefix=""
-                              />
-                            </div>
-                          )}
-                        </div>
-                      </Section>
-                    )}
-
-                    {/* Sports Section */}
-                    {sportsData && sportsData.teams.length > 0 && (
-                      <Section title="Related Teams">
-                        <div className="space-y-2">
-                          {sportsData.teams.slice(0, 4).map((t, i) => (
-                            <div key={i} className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                              {t.logo && <img src={t.logo} className="w-10 h-10 object-contain" alt="" />}
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[12px] font-bold text-slate-900 dark:text-white truncate">{t.name}</div>
-                                <div className="text-[10px] text-slate-400">{t.sport} — {t.league}</div>
-                                {t.stadium && <div className="text-[9px] text-slate-400">{t.stadium}</div>}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </Section>
-                    )}
-
-                    {/* Finance Section */}
-                    {financeData && Object.keys(financeData.series).length > 0 && (
-                      <Section title="Economic Indicators">
-                        <div className="grid grid-cols-1 gap-3">
-                          {Object.entries(financeData.series).map(([name, data]) => (
-                            <div key={name} className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                              <div className="flex justify-between items-start mb-2">
-                                <div>
-                                  <div className="text-[10px] text-slate-400 uppercase font-bold tracking-tight">{name}</div>
-                                  <div className="text-[16px] font-bold text-slate-900 dark:text-white">
-                                    {data.values.length > 0 ? data.values[data.values.length - 1].toLocaleString() : '--'}
-                                  </div>
-                                </div>
-                                <div className="text-[9px] text-slate-400 text-right">
-                                  Latest: {data.dates.length > 0 ? data.dates[data.dates.length - 1] : ''}
-                                </div>
-                              </div>
-                              <SparkChart 
-                                data={data.values} 
-                                labels={data.dates}
-                                color="#10b981" 
-                                height={40}
-                              />
-                            </div>
-                          ))}
-                        </div>
-                      </Section>
-                    )}
-
-                    {/* Wikipedia Section */}
-                    {wikiData?.found && wikiData.extract && (
-                      <Section title="Background">
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                          {wikiData.thumbnail && <img src={wikiData.thumbnail} className="w-full h-24 object-cover rounded-lg mb-3" alt="" />}
-                          <div className="text-[12px] font-bold text-slate-900 dark:text-white mb-1">{wikiData.title}</div>
-                          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-4">{wikiData.extract}</p>
-                          {wikiData.url && (
-                            <a href={wikiData.url} target="_blank" rel="noopener noreferrer" className="inline-block mt-2 text-[10px] font-bold text-indigo-600 hover:underline">
-                              Read more on Wikipedia
-                            </a>
-                          )}
-                        </div>
-                      </Section>
-                    )}
-
-                    {/* Trends */}
-                    <Section title="Search Trends">
-                      {loadingTrends ? <Skeleton /> : trendsData && trendsData.related_queries?.length > 0 ? (
-                        <WordCloud words={trendsData.related_queries} />
-                      ) : (
-                        <div className="h-24 bg-slate-50 dark:bg-slate-900/50 rounded-xl flex items-center justify-center border border-dashed border-slate-200 dark:border-slate-800 text-[10px] font-medium text-slate-400">
-                          No trending data available
-                        </div>
-                      )}
-                    </Section>
-
-                    {/* News */}
-                    <Section title="Related News">
-                      <RelatedNews data={newsData} isLoading={loadingNews} />
-                    </Section>
                   </div>
                 )}
               </div>

@@ -95,7 +95,7 @@ async function geocode(query: string) {
     );
     const data = await resp.json();
     if (data.features?.length > 0) return data.features[0].geometry.coordinates;
-  } catch {}
+  } catch { }
   return null;
 }
 
@@ -126,7 +126,7 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
   const lastStyleRef = useRef<string>(currentTheme === 'dark' ? STYLE_DARK : STYLE_LIGHT);
 
   // ─── Ref-based replay function ───
-  const replayLayersRef = useRef<(m: mapboxgl.Map) => void>(() => {});
+  const replayLayersRef = useRef<(m: mapboxgl.Map) => void>(() => { });
   replayLayersRef.current = (m: mapboxgl.Map) => {
     try {
       if (m.getLayer('connection-lines')) m.removeLayer('connection-lines');
@@ -184,7 +184,7 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
 
     m.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
     m.addControl(new mapboxgl.FullscreenControl(), 'top-right');
-    
+
     // Create two independent popups
     hoverPopup.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
     pinnedPopup.current = new mapboxgl.Popup({ closeButton: true, closeOnClick: false, offset: 15 });
@@ -259,7 +259,7 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId 
         map.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mounted]);
 
   // ─── Theme Effect ───

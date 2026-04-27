@@ -5,6 +5,7 @@ import Header from '@/components/Header';
 import Ticker from '@/components/Ticker';
 import MapContainer from '@/components/MapContainer';
 import MarketModal from '@/components/MarketModal';
+import ContextModal from '@/components/ContextModal';
 import LoadingScreen from '@/components/LoadingScreen';
 import { fetchHeadlines, MarketHeadline } from '@/lib/api';
 
@@ -19,7 +20,7 @@ export default function Home() {
   useEffect(() => {
     async function loadData() {
       try {
-        setLoadingText('Fetching all Polymarket events...');
+        setLoadingText('Fetching all markets...');
         const data = await fetchHeadlines();
         setMarkets(data);
         setLoadingText('Resolving locations...');
@@ -52,18 +53,23 @@ export default function Home() {
       <LoadingScreen isVisible={isLoading} text={loadingText} />
       <Header markets={markets} onSearch={setSearchQuery} onMarketSelect={handleMarketSelect} />
       <Ticker markets={markets} />
-      
+
       <div className="flex-1 relative">
-        <MapContainer 
-          markets={filteredMarkets} 
+        <MapContainer
+          markets={filteredMarkets}
           onMarketClick={handleMarketClick}
           selectedMarketId={selectedMarket?.condition_id || null}
         />
-        
-        <MarketModal 
+
+        <MarketModal
           market={selectedMarket}
           isOpen={isModalOpen}
           onClose={() => { setIsModalOpen(false); setSelectedMarket(null); }}
+        />
+
+        <ContextModal
+          market={selectedMarket}
+          isOpen={isModalOpen}
         />
       </div>
     </main>

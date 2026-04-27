@@ -151,10 +151,26 @@ def _get_gemini_model():
     try:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        _gemini_model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
+        _gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
         return _gemini_model
     except Exception as e:
         print(f"[Context] Failed to init Gemini: {e}")
+        return None
+
+
+def _extract_json_from_text(text: str):
+    """Robustly extract JSON from potential LLM chatter."""
+    try:
+        # Try to find JSON block
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
+        
+        # Clean up common artifacts
+        text = text.strip()
+        return json.loads(text)
+    except Exception:
         return None
 
 
@@ -229,12 +245,11 @@ async def llm_classify_batch(titles: list[str]) -> list[dict]:
         try:
             response = await asyncio.to_thread(model.generate_content, prompt)
             text = response.text.strip()
-            # Extract JSON from response (handle markdown code blocks)
-            if "```" in text:
-                text = text.split("```")[1]
-                if text.startswith("json"):
-                    text = text[4:]
-            parsed = json.loads(text)
+            parsed = _extract_json_from_text(text)
+            
+            if not isinstance(parsed, list):
+                print(f"[Context] Gemini returned non-list JSON: {text[:200]}")
+                continue
 
             for item in parsed:
                 idx = item.get("index", -1)
@@ -248,6 +263,7 @@ async def llm_classify_batch(titles: list[str]) -> list[dict]:
 
         except Exception as e:
             print(f"[Context] Gemini batch classify failed: {e}")
+            # Continue to next batch, results will be filled by fallback logic below
 
     # Fill any remaining gaps with keyword fallback
     for i in range(len(results)):
