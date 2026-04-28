@@ -297,6 +297,21 @@ export async function fetchOdds(query: string): Promise<OddsData> {
   return fetchJSON<OddsData>(`${API_BASE}/odds?q=${encodeURIComponent(query)}`);
 }
 
+// ─── Global Activity (Recent Trades) ───
+export interface RecentTrade {
+  market_id: string;
+  title: string;
+  type: 'buy' | 'sell';
+  price: number;
+  current_price: number;
+  timestamp: number;
+  locations: string[];
+}
+
+export async function fetchActivity(): Promise<RecentTrade[]> {
+  return fetchJSON<RecentTrade[]>(`${API_BASE}/activity/recent-trades`);
+}
+
 // ─── Agent Chat ───
 export async function fetchAgentChat(message: string, context: any): Promise<{ response: string }> {
   const resp = await fetch(`${API_BASE}/agent/chat`, {

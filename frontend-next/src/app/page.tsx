@@ -7,7 +7,8 @@ import MapContainer from '@/components/MapContainer';
 import MarketModal from '@/components/MarketModal';
 import ContextModal from '@/components/ContextModal';
 import LoadingScreen from '@/components/LoadingScreen';
-import { fetchHeadlines, MarketHeadline } from '@/lib/api';
+import { fetchHeadlines, fetchActivity, MarketHeadline, RecentTrade } from '@/lib/api';
+import TradeNotification from '@/components/TradeNotification';
 
 export default function Home() {
   const [markets, setMarkets] = useState<MarketHeadline[]>([]);
@@ -19,6 +20,8 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('Initializing Map...');
+  const [activeTrade, setActiveTrade] = useState<RecentTrade | null>(null);
+  const [pingMarketId, setPingMarketId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -37,6 +40,32 @@ export default function Home() {
     loadData();
   }, []);
 
+  // Poll for global activity
+  useEffect(() => {
+    if (isLoading) return;
+    
+    // Delay initial fetch to let main content settle
+    const initialDelay = setTimeout(() => {
+      const interval = setInterval(async () => {
+        try {
+          const trades = await fetchActivity();
+          if (trades && trades.length > 0) {
+            const latest = trades[0];
+            setActiveTrade(latest);
+            setPingMarketId(latest.market_id);
+            setTimeout(() => setPingMarketId(null), 10000);
+          }
+        } catch (e) {
+          console.error('Activity fetch failed', e);
+        }
+      }, 20000);
+      
+      return () => clearInterval(interval);
+    }, 15000); // 15s delay after loading finishes
+
+    return () => clearTimeout(initialDelay);
+  }, [isLoading]);
+
   const handleMarketClick = useCallback((market: MarketHeadline, coords?: [number, number]) => {
     setSelectedMarket(market);
     setSelectedCoords(coords || null);
@@ -51,6 +80,13 @@ export default function Home() {
     setIsContextOpen(false);
   }, []);
 
+  const handleNotificationClick = useCallback((trade: RecentTrade) => {
+    const market = markets.find(m => m.condition_id === trade.market_id);
+    if (market) {
+      handleMarketSelect(market);
+    }
+  }, [markets, handleMarketSelect]);
+
   const filteredMarkets = markets.filter(m => {
     const matchesSearch = !searchQuery.trim() || m.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || (m.categories || []).includes(selectedCategory);
@@ -60,6 +96,7 @@ export default function Home() {
   return (
     <main className="flex flex-col h-screen overflow-hidden">
       <LoadingScreen isVisible={isLoading} text={loadingText} />
+      <TradeNotification trade={activeTrade} onClick={handleNotificationClick} />
       <Header 
         markets={markets} 
         onSearch={setSearchQuery} 
@@ -74,6 +111,7 @@ export default function Home() {
           onMarketClick={handleMarketClick}
           selectedMarketId={selectedMarket?.condition_id || null}
           selectedCoords={selectedCoords}
+          pingMarketId={pingMarketId}
         />
 
         <MarketModal

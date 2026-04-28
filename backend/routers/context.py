@@ -151,7 +151,7 @@ def _get_gemini_model():
     try:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        _gemini_model = genai.GenerativeModel("gemini-3.1-lite-preview")
+        _gemini_model = genai.GenerativeModel("gemini-3.1-flash-lite-preview")
         return _gemini_model
     except Exception as e:
         print(f"[Context] Failed to init Gemini: {e}")

@@ -11,6 +11,7 @@ interface MapContainerProps {
   onMarketClick: (market: MarketHeadline, coords: [number, number]) => void;
   selectedMarketId: string | null;
   selectedCoords?: [number, number] | null;
+  pingMarketId?: string | null;
 }
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -108,7 +109,7 @@ const STYLE_DARK = 'mapbox://styles/mapbox/dark-v11';
 const STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';
 
 // ─── Component ───────────────────────────────────────
-export default function MapContainer({ markets, onMarketClick, selectedMarketId, selectedCoords }: MapContainerProps) {
+export default function MapContainer({ markets, onMarketClick, selectedMarketId, selectedCoords, pingMarketId }: MapContainerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const hoverPopup = useRef<mapboxgl.Popup | null>(null);
@@ -136,10 +137,25 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
     try {
       if (m.getLayer('connection-lines')) m.removeLayer('connection-lines');
       if (m.getLayer('market-dots')) m.removeLayer('market-dots');
+      if (m.getLayer('market-pulse')) m.removeLayer('market-pulse');
       if (m.getSource('connections')) m.removeSource('connections');
       if (m.getSource('markets')) m.removeSource('markets');
 
       m.addSource('markets', { type: 'geojson', data: lastGeoJsonRef.current });
+      m.addLayer({
+        id: 'market-pulse',
+        type: 'circle',
+        source: 'markets',
+        paint: {
+          'circle-radius': 12,
+          'circle-color': '#4f46e5',
+          'circle-opacity': 0.6,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
+        filter: ['==', 'market_id', pingMarketId || 'none'],
+      });
+
       m.addLayer({
         id: 'market-dots',
         type: 'circle',
@@ -372,6 +388,14 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
       }
     }
   }, [selectedMarketId, selectedCoords, isReady, markets]);
+
+  useEffect(() => {
+    if (!isReady || !map.current) return;
+    const m = map.current;
+    if (m.getLayer('market-pulse')) {
+      m.setFilter('market-pulse', ['==', 'market_id', pingMarketId || 'none']);
+    }
+  }, [pingMarketId, isReady]);
 
   return (
     <div className="relative w-full h-full min-h-[400px]">
