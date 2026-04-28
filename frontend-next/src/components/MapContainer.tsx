@@ -3,7 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MarketHeadline } from '@/lib/api';
+import { MarketHeadline, TweetData } from '@/lib/api';
+import { SocialHistoryItem } from '@/app/page';
 import { useTheme } from 'next-themes';
 
 interface MapContainerProps {
@@ -12,6 +13,11 @@ interface MapContainerProps {
   selectedMarketId: string | null;
   selectedCoords?: [number, number] | null;
   pingMarketId?: string | null;
+  pingLocations?: string[];
+  persistentSocialHistory?: SocialHistoryItem[];
+  teleportCoords?: [number, number] | null;
+  selectedCategory?: string | null;
+  socialConnections?: { tweet: TweetData; market: MarketHeadline }[];
 }
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -66,6 +72,29 @@ function getPopupHTML(p: any): string {
           VIEW →
         </a>
       </div>
+  `;
+}
+
+function getTweetPopupHTML(p: any) {
+  return `
+    <div style="padding:16px;min-width:240px;font-family:inherit;position:relative;">
+      <div style="position:absolute;top:16px;right:16px;width:16px;height:16px;background:#000;border-radius:4px;display:flex;align-items:center;justify-content:center;padding:3px;">
+        <img src="/x-logo.png" style="width:100%;height:100%;" />
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+        <div style="width:32px;height:32px;border-radius:8px;background:#000;display:flex;items-center;justify-content:center;overflow:hidden;">
+          <img src="https://pbs.twimg.com/profile_images/1220442345065750528/l6p28vL8_400x400.jpg" style="width:100%;height:100%;object-fit:cover;" />
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:900;color:#0f172a;line-height:1">Polymarket</div>
+        </div>
+      </div>
+      <div style="font-size:13px;font-weight:500;color:#334155;line-height:1.5;margin-bottom:16px">${p.text}</div>
+      <div style="display:flex;align-items:center;justify-content:flex-end;">
+         <a href="${p.url}" target="_blank" rel="noopener noreferrer" style="padding:6px 12px;border-radius:8px;font-size:11px;font-weight:800;background:#000;color:#ffffff;text-decoration:none;">
+          View
+        </a>
+      </div>
     </div>
   `;
 }
@@ -94,7 +123,7 @@ function greatCircleArc(start: [number, number], end: [number, number], steps = 
 
 const GEO_CACHE_KEY = 'univinsight_geo_v3';
 
-async function geocode(query: string) {
+export async function geocode(query: string) {
   try {
     const resp = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=1&types=place,locality,country,region`
@@ -109,7 +138,18 @@ const STYLE_DARK = 'mapbox://styles/mapbox/dark-v11';
 const STYLE_LIGHT = 'mapbox://styles/mapbox/streets-v12';
 
 // ─── Component ───────────────────────────────────────
-export default function MapContainer({ markets, onMarketClick, selectedMarketId, selectedCoords, pingMarketId }: MapContainerProps) {
+export default function MapContainer({ 
+  markets, 
+  onMarketClick, 
+  selectedMarketId, 
+  selectedCoords, 
+  pingMarketId, 
+  pingLocations,
+  persistentSocialHistory,
+  teleportCoords,
+  selectedCategory,
+  socialConnections
+}: MapContainerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const hoverPopup = useRef<mapboxgl.Popup | null>(null);
@@ -138,10 +178,20 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
       if (m.getLayer('connection-lines')) m.removeLayer('connection-lines');
       if (m.getLayer('market-dots')) m.removeLayer('market-dots');
       if (m.getLayer('market-pulse')) m.removeLayer('market-pulse');
+      if (m.getLayer('social-pings')) m.removeLayer('social-pings');
+      if (m.getLayer('social-persistent')) m.removeLayer('social-persistent');
+      if (m.getLayer('social-connection-lines')) m.removeLayer('social-connection-lines');
       if (m.getSource('connections')) m.removeSource('connections');
+      if (m.getSource('social-connections')) m.removeSource('social-connections');
+      if (m.getSource('social-pings')) m.removeSource('social-pings');
+      if (m.getSource('social-persistent')) m.removeSource('social-persistent');
       if (m.getSource('markets')) m.removeSource('markets');
 
       m.addSource('markets', { type: 'geojson', data: lastGeoJsonRef.current });
+      
+      m.addSource('social-pings', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      m.addSource('social-persistent', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+
       m.addLayer({
         id: 'market-pulse',
         type: 'circle',
@@ -154,6 +204,31 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
           'circle-stroke-color': '#ffffff',
         },
         filter: ['==', 'market_id', pingMarketId || 'none'],
+      });
+
+      m.addLayer({
+        id: 'social-persistent',
+        type: 'circle',
+        source: 'social-persistent',
+        paint: {
+          'circle-radius': 7,
+          'circle-color': '#ffffff',
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#4f46e5', // Indigo stroke for contrast
+        },
+      });
+
+      m.addLayer({
+        id: 'social-pings',
+        type: 'circle',
+        source: 'social-pings',
+        paint: {
+          'circle-radius': 15,
+          'circle-color': '#f43f5e',
+          'circle-opacity': 0.7,
+          'circle-stroke-width': 2,
+          'circle-stroke-color': '#ffffff',
+        },
       });
 
       m.addLayer({
@@ -174,6 +249,22 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
         type: 'line',
         source: 'connections',
         paint: { 'line-color': '#4f46e5', 'line-width': 2, 'line-opacity': 0.7 },
+      }, 'market-dots');
+
+      if (m.getLayer('social-connection-lines')) m.removeLayer('social-connection-lines');
+      if (m.getSource('social-connections')) m.removeSource('social-connections');
+      
+      m.addSource('social-connections', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      m.addLayer({
+        id: 'social-connection-lines',
+        type: 'line',
+        source: 'social-connections',
+        paint: { 
+          'line-color': '#4f46e5', 
+          'line-width': 1.5, 
+          'line-opacity': 0.5,
+          'line-dasharray': [3, 2] 
+        },
       }, 'market-dots');
 
       const dark = themeRef.current === 'dark';
@@ -200,11 +291,11 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
       zoom: 2,
       antialias: true,
       projection: { name: 'globe' },
+      attributionControl: false, // Disables default attribution control
     });
     map.current = m;
 
-    m.addControl(new mapboxgl.NavigationControl({ showCompass: true }), 'top-right');
-    m.addControl(new mapboxgl.FullscreenControl(), 'top-right');
+    // We hide the logo and mandatory attribution via CSS for a clean UI
 
     // Create two independent popups
     hoverPopup.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
@@ -220,6 +311,19 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
     });
 
     m.on('mouseleave', 'market-dots', () => {
+      m.getCanvas().style.cursor = '';
+      hoverPopup.current?.remove();
+    });
+
+    m.on('mouseenter', 'social-persistent', (e) => {
+      if (!e.features?.length) return;
+      m.getCanvas().style.cursor = 'pointer';
+      const p = e.features[0].properties as any;
+      const c = (e.features[0].geometry as any).coordinates.slice();
+      hoverPopup.current?.setLngLat(c).setHTML(getTweetPopupHTML(p)).addTo(m);
+    });
+
+    m.on('mouseleave', 'social-persistent', () => {
       m.getCanvas().style.cursor = '';
       hoverPopup.current?.remove();
     });
@@ -389,13 +493,147 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
     }
   }, [selectedMarketId, selectedCoords, isReady, markets]);
 
+  // Effect for Category Visibility
   useEffect(() => {
     if (!isReady || !map.current) return;
     const m = map.current;
+    
+    const showMarkets = !selectedCategory || selectedCategory !== 'social';
+    const showSocial = !selectedCategory || selectedCategory === 'social';
+
+    const layers = {
+      markets: ['market-dots', 'market-pulse', 'connection-lines'],
+      social: ['social-persistent', 'social-pings']
+    };
+
+    layers.markets.forEach(l => {
+      if (m.getLayer(l)) m.setLayoutProperty(l, 'visibility', showMarkets ? 'visible' : 'none');
+    });
+    layers.social.forEach(l => {
+      if (m.getLayer(l)) m.setLayoutProperty(l, 'visibility', showSocial ? 'visible' : 'none');
+    });
+  }, [selectedCategory, isReady]);
+
+  useEffect(() => {
+    if (!isReady || !map.current) return;
+    const m = map.current;
+    
+    // Handle Market Pings
     if (m.getLayer('market-pulse')) {
-      m.setFilter('market-pulse', ['==', 'market_id', pingMarketId || 'none']);
+      m.setFilter('market-pulse', [
+        'any',
+        ['==', 'market_id', pingMarketId || 'none'],
+        ...(pingLocations || []).map(loc => ['==', 'title', loc])
+      ]);
     }
-  }, [pingMarketId, isReady]);
+
+    // Handle Social Pings (Dynamic geocoding for tweets)
+    const updateSocialPings = async () => {
+      if (pingLocations && pingLocations.length > 0) {
+        const features = [];
+        for (const loc of pingLocations) {
+          const coords = await geocode(loc);
+          if (coords) {
+            features.push({
+              type: 'Feature',
+              geometry: { type: 'Point', coordinates: coords },
+              properties: { title: loc }
+            });
+          }
+        }
+        const source = m.getSource('social-pings') as mapboxgl.GeoJSONSource;
+        if (source) {
+          source.setData({ type: 'FeatureCollection', features: features as any });
+        }
+      } else {
+        const source = m.getSource('social-pings') as mapboxgl.GeoJSONSource;
+        if (source) source.setData({ type: 'FeatureCollection', features: [] });
+      }
+    };
+
+    updateSocialPings();
+  }, [pingMarketId, pingLocations, isReady]);
+
+  // Effect for Manual Teleportation
+  useEffect(() => {
+    if (!isReady || !map.current || !teleportCoords) return;
+    map.current.flyTo({ center: teleportCoords, zoom: 6, duration: 2500 });
+  }, [teleportCoords, isReady]);
+
+  // Effect for Persistent Social Markers
+  useEffect(() => {
+    if (!isReady || !map.current) return;
+    const m = map.current;
+    
+    const updatePersistentMarkers = async () => {
+      if (!persistentSocialHistory || persistentSocialHistory.length === 0) {
+        const source = m.getSource('social-persistent') as mapboxgl.GeoJSONSource;
+        if (source) source.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      const features = [];
+      for (const item of persistentSocialHistory) {
+        const coords = await geocode(item.location);
+        if (coords) {
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'Point', coordinates: coords },
+            properties: { 
+              location: item.location,
+              text: item.tweet.text,
+              url: item.tweet.url,
+              id: item.tweet.id
+            }
+          });
+        }
+      }
+      
+      const source = m.getSource('social-persistent') as mapboxgl.GeoJSONSource;
+      if (source) {
+        source.setData({ type: 'FeatureCollection', features: features as any });
+      }
+    };
+
+    updatePersistentMarkers();
+  }, [persistentSocialHistory, isReady]);
+
+  // Effect for Social Connections (Arcs between tweets and markets)
+  useEffect(() => {
+    if (!isReady || !map.current || !socialConnections) return;
+    const m = map.current;
+
+    const drawSocialConnections = async () => {
+      if (socialConnections.length === 0) {
+        const source = m.getSource('social-connections') as mapboxgl.GeoJSONSource;
+        if (source) source.setData({ type: 'FeatureCollection', features: [] });
+        return;
+      }
+
+      const features = [];
+      for (const conn of socialConnections) {
+        const tLoc = conn.tweet.locations[0] || 'Washington D.C.';
+        const mLoc = conn.market.location || 'Washington D.C.';
+        
+        const [c1, c2] = await Promise.all([geocode(tLoc), geocode(mLoc)]);
+        if (c1 && c2) {
+          const arc = greatCircleArc(c1, c2);
+          features.push({
+            type: 'Feature',
+            geometry: { type: 'LineString', coordinates: arc },
+            properties: {}
+          });
+        }
+      }
+      
+      const source = m.getSource('social-connections') as mapboxgl.GeoJSONSource;
+      if (source) {
+        source.setData({ type: 'FeatureCollection', features: features as any });
+      }
+    };
+
+    drawSocialConnections();
+  }, [socialConnections, isReady]);
 
   return (
     <div className="relative w-full h-full min-h-[400px]">

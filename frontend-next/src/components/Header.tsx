@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { Search, Moon, Sun, X, Filter, ChevronDown } from 'lucide-react';
+import { Search, Moon, Sun, X, Filter, ChevronDown, PanelRight } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { MarketHeadline } from '@/lib/api';
 
@@ -11,6 +11,8 @@ interface HeaderProps {
   onSearch: (query: string) => void;
   onMarketSelect: (market: MarketHeadline) => void;
   onCategoryChange: (category: string | null) => void;
+  isFeedOpen: boolean;
+  onFeedToggle: () => void;
 }
 
 const CATEGORIES = [
@@ -22,6 +24,7 @@ const CATEGORIES = [
   { id: 'tech', label: 'Tech' },
   { id: 'climate', label: 'Climate' },
   { id: 'entertainment', label: 'Entertainment' },
+  { id: 'social', label: 'X / Social' },
 ];
 
 function fmtCountdown(d?: string) {
@@ -35,7 +38,7 @@ function fmtCountdown(d?: string) {
   return days > 0 ? days + 'd ' + hrs + 'h' : hrs + 'h';
 }
 
-export default function Header({ markets, onSearch, onMarketSelect, onCategoryChange }: HeaderProps) {
+export default function Header({ markets, onSearch, onMarketSelect, onCategoryChange, isFeedOpen, onFeedToggle }: HeaderProps) {
   const { theme, setTheme } = useTheme();
   const [query, setQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
@@ -203,6 +206,20 @@ export default function Header({ markets, onSearch, onMarketSelect, onCategoryCh
               </div>
             )}
           </div>
+
+          {/* Feed Toggle */}
+          <button
+            onClick={onFeedToggle}
+            className={cn(
+              "h-10 w-10 flex items-center justify-center bg-white dark:bg-slate-800 border rounded-xl transition-all shadow-sm",
+              isFeedOpen 
+                ? "border-indigo-500 text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/30" 
+                : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600"
+            )}
+            title="Toggle Live Feed"
+          >
+            <PanelRight className="w-4 h-4" />
+          </button>
         </div>
 
         {/* Theme Toggle */}

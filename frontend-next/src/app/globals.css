@@ -75,6 +75,11 @@ html, body {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
 }
 
+.mapboxgl-ctrl-logo, 
+.mapboxgl-ctrl-attrib {
+  display: none !important;
+}
+
 /* ─── Scrollbar ─── */
 ::-webkit-scrollbar {
   width: 6px;

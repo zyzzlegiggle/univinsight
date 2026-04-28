@@ -312,6 +312,21 @@ export async function fetchActivity(): Promise<RecentTrade[]> {
   return fetchJSON<RecentTrade[]>(`${API_BASE}/activity/recent-trades`);
 }
 
+// ─── Social Activity (Twitter/X) ───
+export interface TweetData {
+  id: string;
+  text: string;
+  created_at: string;
+  author_id: string;
+  locations: string[];
+  url: string;
+}
+
+export async function fetchTweets(history: boolean = false): Promise<TweetData[]> {
+  const url = `${API_BASE}/twitter/polymarket${history ? '?history=true' : ''}`;
+  return fetchJSON<TweetData[]>(url);
+}
+
 // ─── Agent Chat ───
 export async function fetchAgentChat(message: string, context: any): Promise<{ response: string }> {
   const resp = await fetch(`${API_BASE}/agent/chat`, {

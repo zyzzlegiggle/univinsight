@@ -3,12 +3,19 @@
 import { useEffect, useState, useCallback } from 'react';
 import Header from '@/components/Header';
 import Ticker from '@/components/Ticker';
-import MapContainer from '@/components/MapContainer';
+import MapContainer, { geocode } from '@/components/MapContainer';
 import MarketModal from '@/components/MarketModal';
 import ContextModal from '@/components/ContextModal';
 import LoadingScreen from '@/components/LoadingScreen';
-import { fetchHeadlines, fetchActivity, MarketHeadline, RecentTrade } from '@/lib/api';
+import { fetchHeadlines, fetchActivity, fetchTweets, MarketHeadline, RecentTrade, TweetData } from '@/lib/api';
 import TradeNotification from '@/components/TradeNotification';
+import TweetNotification from '@/components/TweetNotification';
+import SocialFeed from '@/components/SocialFeed';
+
+export interface SocialHistoryItem {
+  location: string;
+  tweet: TweetData;
+}
 
 export default function Home() {
   const [markets, setMarkets] = useState<MarketHeadline[]>([]);
@@ -16,23 +23,44 @@ export default function Home() {
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContextOpen, setIsContextOpen] = useState(false);
+  const [isFeedOpen, setIsFeedOpen] = useState(true);
+  const [userManuallyClosedFeed, setUserManuallyClosedFeed] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('Initializing Map...');
   const [activeTrade, setActiveTrade] = useState<RecentTrade | null>(null);
+  const [activeTweet, setActiveTweet] = useState<TweetData | null>(null);
   const [pingMarketId, setPingMarketId] = useState<string | null>(null);
+  const [pingLocations, setPingLocations] = useState<string[]>([]);
+  const [socialHistory, setSocialHistory] = useState<SocialHistoryItem[]>([]);
+  const [lastTweetId, setLastTweetId] = useState<string | null>(null);
+  const [teleportCoords, setTeleportCoords] = useState<[number, number] | null>(null);
 
   useEffect(() => {
     async function loadData() {
       try {
         setLoadingText('Fetching all markets...');
-        const data = await fetchHeadlines();
-        setMarkets(data);
+        const [mktData, tweetData] = await Promise.all([
+          fetchHeadlines(),
+          fetchTweets(true)
+        ]);
+        
+        setMarkets(mktData);
+        
+        if (tweetData && tweetData.length > 0) {
+          setLastTweetId(tweetData[0].id);
+          const historyItems: SocialHistoryItem[] = [];
+          tweetData.forEach(t => {
+            t.locations.forEach(loc => historyItems.push({ location: loc, tweet: t }));
+          });
+          setSocialHistory(historyItems);
+        }
+
         setLoadingText('Resolving locations...');
         setTimeout(() => setIsLoading(false), 600);
       } catch (error) {
-        console.error('Failed to fetch markets:', error);
+        console.error('Failed to fetch data:', error);
         setLoadingText('Error loading data');
         setTimeout(() => setIsLoading(false), 2000);
       }
@@ -66,20 +94,65 @@ export default function Home() {
     return () => clearTimeout(initialDelay);
   }, [isLoading]);
 
+  // Poll for Twitter updates
+  useEffect(() => {
+    if (isLoading) return;
+    
+    const interval = setInterval(async () => {
+      try {
+        const tweets = await fetchTweets();
+        if (tweets && tweets.length > 0) {
+          const newest = tweets[0];
+          if (newest.id !== lastTweetId) {
+            setLastTweetId(newest.id);
+            setActiveTweet(newest);
+            setPingLocations(newest.locations);
+            
+            setSocialHistory(prev => {
+              const newItems = newest.locations.map(loc => ({ location: loc, tweet: newest }));
+              // Filter out duplicates if needed, but here we just append
+              return [...prev, ...newItems];
+            });
+
+            setTimeout(() => setPingLocations([]), 15000);
+          }
+        }
+      } catch (e) {
+        console.error('Twitter fetch failed', e);
+      }
+    }, 25000); // Check every 25 seconds (Mock Mode)
+
+    return () => clearInterval(interval);
+  }, [isLoading, lastTweetId]);
+
   const handleMarketClick = useCallback((market: MarketHeadline, coords?: [number, number]) => {
     setSelectedMarket(market);
     setSelectedCoords(coords || null);
     setIsModalOpen(true);
-    setIsContextOpen(false);
+    setIsFeedOpen(false);
   }, []);
 
   const handleMarketSelect = useCallback((market: MarketHeadline) => {
     setSelectedMarket(market);
     setSelectedCoords(null);
     setIsModalOpen(true);
-    setIsContextOpen(false);
+    setIsFeedOpen(false);
   }, []);
 
+  const handleFeedToggle = useCallback(() => {
+    const next = !isFeedOpen;
+    setIsFeedOpen(next);
+    setUserManuallyClosedFeed(!next);
+  }, [isFeedOpen]);
+
+  const handleModalClose = useCallback(() => {
+    setIsModalOpen(false);
+    setIsContextOpen(false);
+    setSelectedMarket(null);
+    if (!userManuallyClosedFeed) {
+      setIsFeedOpen(true);
+    }
+  }, [userManuallyClosedFeed]);
   const handleNotificationClick = useCallback((trade: RecentTrade) => {
     const market = markets.find(m => m.condition_id === trade.market_id);
     if (market) {
@@ -87,21 +160,57 @@ export default function Home() {
     }
   }, [markets, handleMarketSelect]);
 
+  const handleTweetClick = useCallback(async (tweet: TweetData) => {
+    if (tweet.locations.length > 0) {
+      const coords = await geocode(tweet.locations[0]);
+      if (coords) {
+        setTeleportCoords(coords);
+        // Reset teleport so same click works again if moved
+        setTimeout(() => setTeleportCoords(null), 100);
+      }
+    }
+  }, []);
+
   const filteredMarkets = markets.filter(m => {
     const matchesSearch = !searchQuery.trim() || m.title.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = !selectedCategory || (m.categories || []).includes(selectedCategory);
     return matchesSearch && matchesCategory;
   });
 
+  const uniqueTweets = Array.from(new Map(socialHistory.map(item => [item.tweet.id, item.tweet])).values());
+
+  const socialConnections: { tweet: TweetData; market: MarketHeadline }[] = [];
+  if (!selectedCategory || selectedCategory === 'social' || !selectedCategory) {
+    socialHistory.forEach(item => {
+      markets.forEach(m => {
+        if (m.location === item.location) {
+          socialConnections.push({ tweet: item.tweet, market: m });
+        }
+      });
+    });
+  }
+
   return (
     <main className="flex flex-col h-screen overflow-hidden">
       <LoadingScreen isVisible={isLoading} text={loadingText} />
       <TradeNotification trade={activeTrade} onClick={handleNotificationClick} />
+      <TweetNotification tweet={activeTweet} onClick={handleTweetClick} />
+      
+      {isFeedOpen && (
+        <SocialFeed 
+          tweets={uniqueTweets} 
+          onTweetClick={handleTweetClick} 
+          onClose={() => setIsFeedOpen(false)} 
+        />
+      )}
+
       <Header 
         markets={markets} 
         onSearch={setSearchQuery} 
         onMarketSelect={handleMarketSelect}
         onCategoryChange={setSelectedCategory}
+        isFeedOpen={isFeedOpen}
+        onFeedToggle={handleFeedToggle}
       />
       <Ticker markets={filteredMarkets} />
 
@@ -112,12 +221,17 @@ export default function Home() {
           selectedMarketId={selectedMarket?.condition_id || null}
           selectedCoords={selectedCoords}
           pingMarketId={pingMarketId}
+          pingLocations={pingLocations}
+          persistentSocialHistory={socialHistory}
+          teleportCoords={teleportCoords}
+          selectedCategory={selectedCategory}
+          socialConnections={socialConnections}
         />
 
         <MarketModal
           market={selectedMarket}
           isOpen={isModalOpen}
-          onClose={() => { setIsModalOpen(false); setIsContextOpen(false); setSelectedMarket(null); }}
+          onClose={handleModalClose}
           onAnalyze={() => setIsContextOpen(true)}
           isContextOpen={isContextOpen}
         />
@@ -125,6 +239,7 @@ export default function Home() {
         <ContextModal
           market={selectedMarket}
           isOpen={isContextOpen}
+          relatedTweets={uniqueTweets.filter(t => t.locations.includes(selectedMarket?.location || ''))}
         />
       </div>
     </main>

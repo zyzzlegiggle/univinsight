@@ -7,7 +7,7 @@ import {
   fetchCrypto, fetchClimate, fetchSports, fetchFinance, fetchWiki,
   fetchSentiment, fetchPolitics, fetchOdds,
   CryptoData, ClimateData, SportsData, FinanceData, WikiData,
-  SentimentData, PoliticsData, OddsData,
+  SentimentData, PoliticsData, OddsData, TweetData
 } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -15,10 +15,12 @@ import RelatedNews from './RelatedNews';
 import WordCloud from './WordCloud';
 import SparkChart from './SparkChart';
 import MarketAgent from './MarketAgent';
+import { X, ExternalLink, MessageCircle } from 'lucide-react';
 
 interface ContextModalProps {
   market: MarketHeadline | null;
   isOpen: boolean;
+  relatedTweets?: TweetData[];
 }
 
 function fmtPrice(n: number) {
@@ -88,7 +90,7 @@ function FullModalSkeleton() {
   );
 }
 
-export default function ContextModal({ market, isOpen }: ContextModalProps) {
+export default function ContextModal({ market, isOpen, relatedTweets }: ContextModalProps) {
   const [newsData, setNewsData] = useState<any>(null);
   const [trendsData, setTrendsData] = useState<TrendsResponse | null>(null);
   const [cryptoData, setCryptoData] = useState<CryptoData | null>(null);
@@ -221,6 +223,31 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                         Full Intelligence Report →
                       </a>
                     )}
+                  </div>
+                </Section>
+              )}
+
+              {/* Social Intelligence Slider */}
+              {relatedTweets && relatedTweets.length > 0 && (
+                <Section title="Social Intelligence">
+                  <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
+                    {relatedTweets.map((t) => (
+                      <div key={t.id} className="min-w-[280px] snap-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50">
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center p-1.5 shrink-0">
+                            <X className="w-full h-full text-white fill-current" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[11px] font-black text-slate-900 dark:text-white truncate">Polymarket</div>
+                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest truncate">Social Update</div>
+                          </div>
+                          <a href={t.url} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                            <ExternalLink className="w-3 h-3 text-slate-400" />
+                          </a>
+                        </div>
+                        <p className="text-[12px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3 italic">"{t.text}"</p>
+                      </div>
+                    ))}
                   </div>
                 </Section>
               )}
@@ -358,10 +385,10 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                       <div key={name} className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
                         <div className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-black tracking-widest mb-1">{name}</div>
                         <div className="text-lg font-black text-slate-900 dark:text-white">
-                          {typeof d.latest_value === 'number' 
-                            ? d.latest_value > 1e9 ? fmtPrice(d.latest_value) 
+                          {typeof d.latest_value === 'number'
+                            ? d.latest_value > 1e9 ? fmtPrice(d.latest_value)
                               : d.latest_value > 1000 ? d.latest_value.toLocaleString()
-                              : d.latest_value.toFixed(2)
+                                : d.latest_value.toFixed(2)
                             : d.latest_value}
                         </div>
                         <div className="text-[9px] text-slate-400 mt-1">{d.country} — {d.year}</div>
@@ -422,11 +449,10 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                           {sentimentData.avg_tone >= 0 ? '+' : ''}{sentimentData.avg_tone.toFixed(2)}
                         </div>
                       </div>
-                      <div className={`px-3 py-1 rounded-full text-[10px] font-black ${
-                        sentimentData.avg_tone > 1 ? 'bg-green-100 text-green-700' :
+                      <div className={`px-3 py-1 rounded-full text-[10px] font-black ${sentimentData.avg_tone > 1 ? 'bg-green-100 text-green-700' :
                         sentimentData.avg_tone < -1 ? 'bg-red-100 text-red-700' :
-                        'bg-slate-100 text-slate-600'
-                      }`}>
+                          'bg-slate-100 text-slate-600'
+                        }`}>
                         {sentimentData.avg_tone > 1 ? 'Positive' : sentimentData.avg_tone < -1 ? 'Negative' : 'Neutral'}
                       </div>
                     </div>
@@ -436,15 +462,15 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
               )}
 
               {/* News */}
-              <Section 
-                title="Related News Intelligence" 
+              <Section
+                title="Related Articles"
                 defaultOpen={newsData && newsData.articles && newsData.articles.length > 0}
               >
                 <RelatedNews data={newsData} isLoading={false} />
               </Section>
 
               {/* Search Trends */}
-              <Section 
+              <Section
                 title="Social & Search Trends"
                 defaultOpen={trendsData && trendsData.related_queries && trendsData.related_queries.length > 0}
               >
@@ -454,7 +480,7 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                   </div>
                 ) : (
                   <div className="h-32 bg-slate-50 dark:bg-slate-800/30 rounded-2xl flex items-center justify-center border border-dashed border-slate-200 dark:border-slate-800 text-[11px] font-bold text-slate-400 uppercase tracking-widest">
-                    No Trending Intelligence
+                    No Trending Data Available
                   </div>
                 )}
               </Section>
