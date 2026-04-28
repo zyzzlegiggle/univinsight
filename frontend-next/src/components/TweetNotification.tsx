@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TweetData } from '@/lib/api';
-import { MessageSquare, ExternalLink, MapPin } from 'lucide-react';
+import { MessageSquare, ExternalLink, MapPin, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TweetNotificationProps {
@@ -36,6 +36,14 @@ export default function TweetNotification({ tweet, onClick }: TweetNotificationP
           className="fixed bottom-24 right-6 z-[3000] w-[340px] cursor-pointer"
         >
           <div className="bg-white/95 dark:bg-slate-950/95 backdrop-blur-3xl border border-slate-200 dark:border-slate-800 rounded-3xl p-5 shadow-[0_30px_60px_-12px_rgba(0,0,0,0.3)] overflow-hidden relative group">
+            {/* Close Button */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); setVisible(false); }}
+              className="absolute top-4 left-4 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-300 hover:text-slate-600 dark:hover:text-slate-200 z-50"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+
             {/* X Logo in Top Right */}
             <div className="absolute top-4 right-4 w-5 h-5 bg-black rounded-md flex items-center justify-center p-1 z-20">
               <img src="/x-logo.png" alt="X" className="w-full h-full" onError={(e) => {

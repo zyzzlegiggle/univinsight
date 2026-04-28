@@ -8,9 +8,10 @@ import ReactMarkdown from 'react-markdown';
 interface MarketAgentProps {
   market: MarketHeadline;
   context: any;
+  relatedTweets?: any[];
 }
 
-export default function MarketAgent({ market, context }: MarketAgentProps) {
+export default function MarketAgent({ market, context, relatedTweets }: MarketAgentProps) {
   const [history, setHistory] = useState<{ question: string; answer: string }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -32,10 +33,13 @@ export default function MarketAgent({ market, context }: MarketAgentProps) {
     try {
       const fullContext = {
         market_title: market.title,
+        outcomes: market.outcomes,
         probability: market.probability,
         volume: market.volume,
         end_date: market.end_date,
+        location: market.location,
         categories: market.categories,
+        social_intelligence: relatedTweets,
         intelligence: context,
       };
 

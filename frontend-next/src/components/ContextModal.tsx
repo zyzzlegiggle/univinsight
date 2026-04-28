@@ -493,6 +493,7 @@ export default function ContextModal({ market, isOpen, relatedTweets }: ContextM
                 </div>
                 <MarketAgent
                   market={market}
+                  relatedTweets={relatedTweets}
                   context={{
                     news: newsData,
                     trends: trendsData,

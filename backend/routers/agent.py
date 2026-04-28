@@ -17,15 +17,23 @@ class ChatRequest(BaseModel):
     context: dict
 
 
+SYSTEM_PROMPT = """You are a prediction market analyst. Users will ask about specific markets and provide rich context data including news, social media trends (X/Twitter), and specific market outcomes.
+
+Rules:
+- Be brief. Use 2-4 short sentences max unless asked to elaborate.
+- Use bullet points for multiple items.
+- Reference specific data points from the provided context (e.g., current probabilities, related tweets, news sentiment) when relevant.
+- State facts, not opinions. If data (like social sentiment vs. market price) conflicts, say so plainly.
+- Analyze all provided market outcomes/options to provide a holistic view.
+- Never make up information not in the context.
+- Do not greet the user or use filler phrases like "Great question!" or "Sure!".
+- Start your response directly with the answer."""
+
+
 async def _call_do_agent(user_message: str) -> str:
     """
     Call the DigitalOcean GenAI Agent using the OpenAI-compatible
     chat completions API.
-
-    Endpoint: POST {base_url}/api/v1/chat/completions
-    Auth:     Bearer token
-    Body:     {"messages": [{"role": "user", "content": "..."}], "stream": false}
-    Response: {"choices": [{"message": {"content": "..."}}]}
     """
     if not DO_AGENT_ENDPOINT or not DO_AGENT_ACCESS_KEY:
         raise HTTPException(status_code=503, detail="Agent not configured")
@@ -35,6 +43,7 @@ async def _call_do_agent(user_message: str) -> str:
 
     payload = {
         "messages": [
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message}
         ],
         "stream": False,
@@ -75,20 +84,11 @@ async def _call_do_agent(user_message: str) -> str:
 
 @router.post("/classify")
 async def classify_markets(req: ClassifyRequest):
-    """Classify market titles via DO Agent."""
-    if not DO_AGENT_ENDPOINT or not DO_AGENT_ACCESS_KEY:
-        return {"results": []}
-
-    prompt = (
-        "Classify these market titles. Return ONLY a JSON array. "
-        'Each item: {"index": int, "categories": ["crypto","finance","sports","climate"], "entity": "string"}\n'
-    )
-    for i, t in enumerate(req.titles):
-        prompt += f"{i}. {t}\n"
-
+    """Classify market titles via Gemini (Fallback to Keywords)."""
+    from routers.context import llm_classify_batch
     try:
-        text = await _call_do_agent(prompt)
-        return {"results": _parse_agent_json(text)}
+        results = await llm_classify_batch(req.titles)
+        return {"results": results}
     except Exception as e:
         print(f"[Agent] Classification failed: {e}")
         return {"results": []}

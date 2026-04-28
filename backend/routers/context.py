@@ -209,47 +209,11 @@ _llm_cache: dict[str, dict] = {}
 async def llm_classify_batch(titles: list[str]) -> list[dict]:
     """
     Classify a batch of market titles.
-    Priority: 1) DO Gradient Agent  2) Gemini Flash  3) Keyword rules
+    Priority: 1) Gemini Flash  2) Keyword rules
     """
-    from config import DO_AGENT_ENDPOINT, DO_AGENT_ACCESS_KEY, GEMINI_API_KEY
+    from config import GEMINI_API_KEY
 
-    # ── Try DigitalOcean Gradient Agent first (if configured) ──
-    if DO_AGENT_ENDPOINT and DO_AGENT_ACCESS_KEY:
-        try:
-            from routers.agent import classify_markets
-            from pydantic import BaseModel
-
-            class _Req(BaseModel):
-                titles: list[str]
-
-            # Only send first 30 to DO to prevent timeouts
-            do_titles = titles[:30]
-            resp = await classify_markets(_Req(titles=do_titles))
-            agent_results = resp.get("results", [])
-
-            if agent_results:
-                results = []
-                for i, r in enumerate(agent_results):
-                    if r:
-                        results.append(r)
-                        _llm_cache[titles[i]] = r
-                    else:
-                        results.append(None)
-                
-                # Fill the rest with None to be handled by other tiers
-                results.extend([None] * (len(titles) - len(results)))
-                
-                # If we got meaningful results, proceed to handle gaps
-                if any(r is not None for r in results):
-                    # Continue to fill gaps below
-                    pass 
-                else:
-                    results = [None] * len(titles)
-        except Exception as e:
-            print(f"[Context] DO Agent classification failed: {e}")
-            results = [None] * len(titles)
-    else:
-        results = [None] * len(titles)
+    results = [None] * len(titles)
 
     # ── Check Cache for remaining gaps ──
     for i, t in enumerate(titles):

@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { RecentTrade } from '@/lib/api';
-import { TrendingUp, TrendingDown, Bell } from 'lucide-react';
+import { TrendingUp, TrendingDown, Bell, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface TradeNotificationProps {
@@ -34,6 +34,14 @@ export default function TradeNotification({ trade, onClick }: TradeNotificationP
           className="fixed top-20 right-6 z-[3000] w-[320px] cursor-pointer"
         >
           <div className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border border-slate-200/50 dark:border-slate-800/50 rounded-2xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-hidden relative group">
+            {/* Close Button */}
+            <button 
+              onClick={(e) => { e.stopPropagation(); setVisible(false); }}
+              className="absolute top-3 right-3 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-300 hover:text-slate-600 dark:hover:text-slate-200 z-50"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+
             {/* Animated accent bar */}
             <div className={cn(
               "absolute left-0 top-0 bottom-0 w-1.5 transition-all duration-500",
@@ -58,8 +66,15 @@ export default function TradeNotification({ trade, onClick }: TradeNotificationP
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
-                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">Live Activity</span>
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Trade Alert</span>
                 </div>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); setVisible(false); }}
+                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  title="Dismiss"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
               </div>
 
               <h4 className="text-[12px] font-bold text-slate-900 dark:text-white leading-snug line-clamp-2 mb-3">
