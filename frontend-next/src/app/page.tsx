@@ -16,6 +16,7 @@ export default function Home() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [loadingText, setLoadingText] = useState('Initializing Map...');
 
@@ -50,15 +51,22 @@ export default function Home() {
     setIsContextOpen(false);
   }, []);
 
-  const filteredMarkets = searchQuery.trim()
-    ? markets.filter(m => m.title.toLowerCase().includes(searchQuery.toLowerCase()))
-    : markets;
+  const filteredMarkets = markets.filter(m => {
+    const matchesSearch = !searchQuery.trim() || m.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = !selectedCategory || (m.categories || []).includes(selectedCategory);
+    return matchesSearch && matchesCategory;
+  });
 
   return (
     <main className="flex flex-col h-screen overflow-hidden">
       <LoadingScreen isVisible={isLoading} text={loadingText} />
-      <Header markets={markets} onSearch={setSearchQuery} onMarketSelect={handleMarketSelect} />
-      <Ticker markets={markets} />
+      <Header 
+        markets={markets} 
+        onSearch={setSearchQuery} 
+        onMarketSelect={handleMarketSelect}
+        onCategoryChange={setSelectedCategory}
+      />
+      <Ticker markets={filteredMarkets} />
 
       <div className="flex-1 relative">
         <MapContainer

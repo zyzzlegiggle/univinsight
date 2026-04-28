@@ -46,7 +46,7 @@ export default function RelatedNews({ data, isLoading }: RelatedNewsProps) {
                   <div className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
                     {article.site?.split('.')[0] || 'News'}
                   </div>
-                  {article.published && (
+                  {article.published && !isNaN(new Date(article.published).getTime()) && (
                     <span className="text-[9px] text-slate-400 font-bold uppercase">
                       {new Date(article.published).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </span>

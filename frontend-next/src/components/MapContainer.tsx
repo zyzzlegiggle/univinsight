@@ -25,8 +25,10 @@ function fmtVol(val?: number) {
 }
 
 function fmtCountdown(d?: string) {
-  if (!d) return 'N/A';
-  const ms = new Date(d).getTime() - Date.now();
+  if (!d) return '';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '';
+  const ms = date.getTime() - Date.now();
   if (ms <= 0) return 'Closed';
   const days = Math.floor(ms / 86400000);
   const hrs = Math.floor((ms % 86400000) / 3600000);
@@ -54,9 +56,11 @@ function getPopupHTML(p: any): string {
         <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">
           No ${Math.round((100 - (p.probability || 0)) * 10) / 10}%
         </span>
+        ${fmtCountdown(p.end_date) ? `
         <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(148,163,184,0.1);color:#94a3b8;border:1px solid rgba(148,163,184,0.2)">
           ${fmtCountdown(p.end_date)}
         </span>
+        ` : ''}
         <a href="${p.url}" target="_blank" rel="noopener noreferrer" style="margin-left:auto;padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;background:#4f46e5;color:#ffffff;text-decoration:none;display:flex;align-items:center;gap:4px;">
           VIEW →
         </a>

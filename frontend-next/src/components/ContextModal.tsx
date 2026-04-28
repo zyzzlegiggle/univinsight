@@ -38,6 +38,10 @@ function PctBadge({ val }: { val: number | null | undefined }) {
 function Section({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
+  useEffect(() => {
+    setIsOpen(defaultOpen);
+  }, [defaultOpen]);
+
   return (
     <div className="mb-6 last:mb-0 border-b border-slate-100 dark:border-slate-800/50 pb-6 last:border-0 last:pb-0">
       <button
@@ -432,12 +436,18 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
               )}
 
               {/* News */}
-              <Section title="Related News Intelligence">
+              <Section 
+                title="Related News Intelligence" 
+                defaultOpen={newsData && newsData.articles && newsData.articles.length > 0}
+              >
                 <RelatedNews data={newsData} isLoading={false} />
               </Section>
 
               {/* Search Trends */}
-              <Section title="Social & Search Trends">
+              <Section 
+                title="Social & Search Trends"
+                defaultOpen={trendsData && trendsData.related_queries && trendsData.related_queries.length > 0}
+              >
                 {trendsData && trendsData.related_queries?.length > 0 ? (
                   <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50">
                     <WordCloud words={trendsData.related_queries} />

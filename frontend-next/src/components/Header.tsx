@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Search, Moon, Sun, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
+import { Search, Moon, Sun, X, Filter, ChevronDown } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { MarketHeadline } from '@/lib/api';
 
@@ -9,23 +10,40 @@ interface HeaderProps {
   markets: MarketHeadline[];
   onSearch: (query: string) => void;
   onMarketSelect: (market: MarketHeadline) => void;
+  onCategoryChange: (category: string | null) => void;
 }
 
+const CATEGORIES = [
+  { id: null, label: 'All Categories' },
+  { id: 'crypto', label: 'Crypto' },
+  { id: 'politics', label: 'Politics' },
+  { id: 'finance', label: 'Finance' },
+  { id: 'sports', label: 'Sports' },
+  { id: 'tech', label: 'Tech' },
+  { id: 'climate', label: 'Climate' },
+  { id: 'entertainment', label: 'Entertainment' },
+];
+
 function fmtCountdown(d?: string) {
-  if (!d) return 'N/A';
-  const ms = new Date(d).getTime() - Date.now();
+  if (!d) return '';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '';
+  const ms = date.getTime() - Date.now();
   if (ms <= 0) return 'Closed';
   const days = Math.floor(ms / 86400000);
   const hrs = Math.floor((ms % 86400000) / 3600000);
   return days > 0 ? days + 'd ' + hrs + 'h' : hrs + 'h';
 }
 
-export default function Header({ markets, onSearch, onMarketSelect }: HeaderProps) {
+export default function Header({ markets, onSearch, onMarketSelect, onCategoryChange }: HeaderProps) {
   const { theme, setTheme } = useTheme();
   const [query, setQuery] = useState('');
   const [showResults, setShowResults] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [mounted, setMounted] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const filterRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => setMounted(true), []);
 
@@ -34,6 +52,9 @@ export default function Header({ markets, onSearch, onMarketSelect }: HeaderProp
     const handler = (e: MouseEvent) => {
       if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
         setShowResults(false);
+      }
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) {
+        setShowFilters(false);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -55,6 +76,11 @@ export default function Header({ markets, onSearch, onMarketSelect }: HeaderProp
     setQuery('');
     setShowResults(false);
     onSearch('');
+  };
+  const handleCategorySelect = (id: string | null) => {
+    setActiveCategory(id);
+    onCategoryChange(id);
+    setShowFilters(false);
   };
 
   return (
@@ -83,9 +109,9 @@ export default function Header({ markets, onSearch, onMarketSelect }: HeaderProp
           </div>
         </div>
 
-        {/* Search */}
-        <div className="flex-1 flex justify-center z-[2001]" ref={containerRef}>
-          <div className="relative w-full max-w-[420px]">
+        {/* Search & Filter */}
+        <div className="flex-1 flex justify-center items-center gap-3 z-[2001]">
+          <div className="relative w-full max-w-[420px]" ref={containerRef}>
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
             <input
               type="text"
@@ -139,6 +165,41 @@ export default function Header({ markets, onSearch, onMarketSelect }: HeaderProp
                 ) : (
                   <div className="py-6 text-center text-sm text-slate-400">No markets found</div>
                 )}
+              </div>
+            )}
+          </div>
+
+          {/* Filter Dropdown */}
+          <div className="relative" ref={filterRef}>
+            <button
+              onClick={() => setShowFilters(!showFilters)}
+              className={cn(
+                "h-10 w-10 flex items-center justify-center bg-white dark:bg-slate-800 border rounded-xl transition-all shadow-sm",
+                activeCategory 
+                  ? "border-indigo-500 text-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/30" 
+                  : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-600"
+              )}
+            >
+              <Filter className="w-4 h-4" />
+            </button>
+
+            {showFilters && (
+              <div className="absolute top-[calc(100%+8px)] right-0 w-[200px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-2xl py-2 z-[2002]">
+                {CATEGORIES.map((cat) => (
+                  <button
+                    key={cat.id || 'all'}
+                    onClick={() => handleCategorySelect(cat.id)}
+                    className={cn(
+                      "w-full text-left px-4 py-2.5 text-xs font-bold transition-colors flex items-center justify-between",
+                      activeCategory === cat.id 
+                        ? "text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30" 
+                        : "text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"
+                    )}
+                  >
+                    {cat.label}
+                    {activeCategory === cat.id && <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.6)]" />}
+                  </button>
+                ))}
               </div>
             )}
           </div>

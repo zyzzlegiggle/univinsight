@@ -34,8 +34,10 @@ function fmtVol(val?: number) {
 }
 
 function fmtCountdown(d?: string) {
-  if (!d) return 'N/A';
-  const ms = new Date(d).getTime() - Date.now();
+  if (!d) return '';
+  const date = new Date(d);
+  if (isNaN(date.getTime())) return '';
+  const ms = date.getTime() - Date.now();
   if (ms <= 0) return 'Closed';
   const days = Math.floor(ms / 86400000);
   const hrs = Math.floor((ms % 86400000) / 3600000);
