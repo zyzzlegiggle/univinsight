@@ -329,14 +329,25 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
     if (!isReady || !map.current || !selectedMarketId || !lastGeoJsonRef.current) return;
     
     let targetCoords = selectedCoords;
+    let targetFeature = null;
 
-    if (!targetCoords) {
-      // Find the market in the current GeoJSON features
-      const feature = lastGeoJsonRef.current.features.find((f: any) => 
+    // 1. Try to find the specific feature if we have coordinates (matches duplicate locations)
+    if (targetCoords) {
+      targetFeature = lastGeoJsonRef.current.features.find((f: any) => 
+        markets.find(m => m.condition_id === selectedMarketId)?.title === f.properties.title &&
+        Math.abs(f.geometry.coordinates[0] - targetCoords![0]) < 0.01 &&
+        Math.abs(f.geometry.coordinates[1] - targetCoords![1]) < 0.01
+      );
+    }
+
+    // 2. If no targetCoords or no matching feature found yet, find the first occurrence by title
+    if (!targetFeature) {
+      targetFeature = lastGeoJsonRef.current.features.find((f: any) => 
         markets.find(m => m.condition_id === selectedMarketId)?.title === f.properties.title
       );
-      if (feature && feature.geometry.type === 'Point') {
-        targetCoords = feature.geometry.coordinates as [number, number];
+      // Only set targetCoords if we didn't have one (e.g. from search)
+      if (!targetCoords && targetFeature && targetFeature.geometry.type === 'Point') {
+        targetCoords = targetFeature.geometry.coordinates as [number, number];
       }
     }
 
@@ -348,6 +359,13 @@ export default function MapContainer({ markets, onMarketClick, selectedMarketId,
         duration: 2500,
         essential: true
       });
+
+      // Show pinned popup on teleport
+      if (targetFeature) {
+        pinnedPopup.current?.setLngLat(targetCoords)
+          .setHTML(getPopupHTML(targetFeature.properties))
+          .addTo(map.current);
+      }
     }
   }, [selectedMarketId, selectedCoords, isReady, markets]);
 

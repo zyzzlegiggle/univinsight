@@ -13,9 +13,9 @@ interface RelatedNewsProps {
 export default function RelatedNews({ data, isLoading }: RelatedNewsProps) {
   if (isLoading) {
     return (
-      <div className="space-y-4">
+      <div className="flex gap-4 overflow-hidden pb-4 -mx-6 px-6">
         {[1, 2, 3].map(i => (
-          <div key={i} className="h-24 bg-slate-50 dark:bg-slate-800/50 rounded-xl animate-pulse" />
+          <div key={i} className="w-[280px] h-[140px] bg-slate-50 dark:bg-slate-800/50 rounded-2xl animate-pulse shrink-0" />
         ))}
       </div>
     );
@@ -23,57 +23,67 @@ export default function RelatedNews({ data, isLoading }: RelatedNewsProps) {
 
   if (!data || !data.articles.length) {
     return (
-      <div className="py-12 text-center text-xs text-slate-400 italic">
+      <div className="py-12 text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest italic bg-slate-50/50 dark:bg-slate-900/20 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
         No related news found for this market.
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      {data.articles.map((article, i) => (
-        <a
-          key={i}
-          href={article.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="group block bg-slate-50 dark:bg-slate-800/30 hover:bg-white dark:hover:bg-slate-800 border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900/30 rounded-xl p-3 transition-all"
-        >
-          <div className="flex gap-3">
-            {article.image && (
-              <div className="relative w-20 h-20 rounded-lg overflow-hidden shrink-0 bg-slate-200">
-                <Image
-                  src={article.image}
-                  alt=""
-                  fill
-                  className="object-cover group-hover:scale-105 transition-transform duration-500"
-                />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center justify-between mb-1">
+    <div className="relative group">
+      <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide no-scrollbar -mx-6 px-6">
+        {data.articles.map((article, i) => (
+          <a
+            key={i}
+            href={article.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="group/card block w-[280px] shrink-0 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 transition-all hover:shadow-lg hover:-translate-y-1 snap-start"
+          >
+            <div className="flex flex-col h-full">
+              <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-wider">
-                    {article.site || 'News'}
-                  </span>
+                  <div className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                    {article.site?.split('.')[0] || 'News'}
+                  </div>
                   {article.published && (
-                    <span className="text-[9px] text-slate-400 font-medium">
-                      • {new Date(article.published).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                    <span className="text-[9px] text-slate-400 font-bold uppercase">
+                      {new Date(article.published).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
                     </span>
                   )}
                 </div>
-                <ExternalLink className="w-3 h-3 text-slate-300 group-hover:text-indigo-400 transition-colors" />
+                <ExternalLink className="w-3 h-3 text-slate-300 group-hover/card:text-indigo-500 transition-colors" />
               </div>
-              <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug line-clamp-2 mb-1">
-                {article.title}
-              </h4>
-              <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed">
-                {article.description}
-              </p>
+
+              <div className="flex gap-3 mb-3">
+                {article.image && (
+                  <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-slate-100 dark:bg-slate-800">
+                    <Image
+                      src={article.image}
+                      alt=""
+                      fill
+                      className="object-cover group-hover/card:scale-110 transition-transform duration-700"
+                    />
+                  </div>
+                )}
+                <h4 className="text-[12px] font-bold text-slate-900 dark:text-slate-100 leading-tight line-clamp-3">
+                  {article.title}
+                </h4>
+              </div>
+
+              {article.description && (
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed mt-auto">
+                  {article.description}
+                </p>
+              )}
             </div>
-          </div>
-        </a>
-      ))}
+          </a>
+        ))}
+      </div>
+      
+      {/* Visual fade indicators for scrolling */}
+      <div className="absolute top-0 right-0 bottom-4 w-12 bg-gradient-to-l from-white dark:from-slate-900 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
+      <div className="absolute top-0 left-0 bottom-4 w-12 bg-gradient-to-r from-white dark:from-slate-900 to-transparent pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity" />
     </div>
   );
 }

@@ -5,7 +5,9 @@ import { Newspaper, ChevronDown, ChevronUp, MessageSquare } from 'lucide-react';
 import {
   MarketHeadline, fetchRelatedInfo, fetchTrends, TrendsResponse,
   fetchCrypto, fetchClimate, fetchSports, fetchFinance, fetchWiki,
+  fetchSentiment, fetchPolitics, fetchOdds,
   CryptoData, ClimateData, SportsData, FinanceData, WikiData,
+  SentimentData, PoliticsData, OddsData,
 } from '@/lib/api';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -90,6 +92,9 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
   const [sportsData, setSportsData] = useState<SportsData | null>(null);
   const [financeData, setFinanceData] = useState<FinanceData | null>(null);
   const [wikiData, setWikiData] = useState<WikiData | null>(null);
+  const [sentimentData, setSentimentData] = useState<SentimentData | null>(null);
+  const [politicsData, setPoliticsData] = useState<PoliticsData | null>(null);
+  const [oddsData, setOddsData] = useState<OddsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [contextFetched, setContextFetched] = useState(false);
   const [showChatButton, setShowChatButton] = useState(false);
@@ -133,6 +138,7 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
     const promises: Promise<any>[] = [
       fetchRelatedInfo(market.title).then(setNewsData).catch(() => { }),
       fetchTrends(market.title).then(setTrendsData).catch(() => { }),
+      fetchSentiment(market.title).then(setSentimentData).catch(() => { }),
     ];
 
     if (cats.includes('crypto')) promises.push(fetchCrypto(market.title).then(setCryptoData).catch(() => { }));
@@ -143,8 +149,10 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
     if (cats.includes('sports')) {
       const loc = entity || market.locations?.[0] || '';
       promises.push(fetchSports(loc).then(setSportsData).catch(() => { }));
+      promises.push(fetchOdds(market.title).then(setOddsData).catch(() => { }));
     }
     if (cats.includes('finance')) promises.push(fetchFinance(entity).then(setFinanceData).catch(() => { }));
+    if (cats.includes('politics')) promises.push(fetchPolitics(market.title).then(setPoliticsData).catch(() => { }));
     if (entity) promises.push(fetchWiki(entity).then(setWikiData).catch(() => { }));
 
     Promise.allSettled(promises).then(() => {
@@ -157,6 +165,7 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
     setNewsData(null); setTrendsData(null);
     setCryptoData(null); setClimateData(null);
     setSportsData(null); setFinanceData(null); setWikiData(null);
+    setSentimentData(null); setPoliticsData(null); setOddsData(null);
     setContextFetched(false);
   }, [market?.condition_id]);
 
@@ -166,6 +175,7 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
+          key={market.condition_id}
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           exit={{ opacity: 0, x: 20 }}
@@ -272,7 +282,26 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                       <div><div className="opacity-60 mb-1 font-bold">VOLUME</div><div className="font-black">{fmtPrice(cryptoData.summary.total_volume)}</div></div>
                       <div><div className="opacity-60 mb-1 font-bold">ALL TIME HIGH</div><div className="font-black">{fmtPrice(cryptoData.summary.ath)}</div></div>
                     </div>
+                    {/* Fear & Greed Badge */}
+                    {cryptoData.fear_greed && (
+                      <div className="mt-4 pt-4 border-t border-white/10 flex items-center justify-between">
+                        <div className="text-[10px] opacity-70 font-bold uppercase">Market Sentiment</div>
+                        <div className="px-3 py-1 bg-white/20 rounded-full text-[11px] font-black">
+                          {cryptoData.fear_greed.label} ({cryptoData.fear_greed.value}/100)
+                        </div>
+                      </div>
+                    )}
                   </div>
+                  {/* DeFi TVL */}
+                  {cryptoData.defi_tvl && (
+                    <div className="mt-4 p-5 bg-white dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-sm">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest">DeFi TVL — {cryptoData.defi_tvl.chain}</div>
+                        <div className="text-lg font-black text-slate-900 dark:text-white">{fmtPrice(cryptoData.defi_tvl.current_tvl)}</div>
+                      </div>
+                      <SparkChart data={cryptoData.defi_tvl.values} color="#8b5cf6" height={50} prefix="$" />
+                    </div>
+                  )}
                 </Section>
               )}
 
@@ -301,6 +330,103 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                         />
                       </div>
                     )}
+                  </div>
+                  {/* NASA EONET Natural Events */}
+                  {climateData.natural_events?.length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-2">Active Natural Events</div>
+                      {climateData.natural_events.slice(0, 5).map((evt, i) => (
+                        <div key={i} className="p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/30">
+                          <div className="text-[11px] font-bold text-red-700 dark:text-red-400">{evt.title}</div>
+                          <div className="text-[9px] text-red-500 mt-1">{evt.categories.join(', ')} — {evt.date?.split('T')[0]}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+              )}
+
+              {/* World Bank Indicators */}
+              {financeData?.world_bank && Object.keys(financeData.world_bank).length > 0 && (
+                <Section title="Country Indicators (World Bank)" defaultOpen={false}>
+                  <div className="grid grid-cols-2 gap-3">
+                    {Object.entries(financeData.world_bank).map(([name, d]) => (
+                      <div key={name} className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800/30">
+                        <div className="text-[9px] text-emerald-600 dark:text-emerald-400 uppercase font-black tracking-widest mb-1">{name}</div>
+                        <div className="text-lg font-black text-slate-900 dark:text-white">
+                          {typeof d.latest_value === 'number' 
+                            ? d.latest_value > 1e9 ? fmtPrice(d.latest_value) 
+                              : d.latest_value > 1000 ? d.latest_value.toLocaleString()
+                              : d.latest_value.toFixed(2)
+                            : d.latest_value}
+                        </div>
+                        <div className="text-[9px] text-slate-400 mt-1">{d.country} — {d.year}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Politics: Congress Bills */}
+              {politicsData && politicsData.bills?.length > 0 && (
+                <Section title="Related Legislation" defaultOpen={false}>
+                  <div className="space-y-2">
+                    {politicsData.bills.slice(0, 5).map((bill, i) => (
+                      <a key={i} href={bill.url} target="_blank" rel="noopener noreferrer"
+                        className="block p-4 bg-violet-50 dark:bg-violet-900/20 rounded-xl border border-violet-100 dark:border-violet-800/30 hover:border-violet-300 dark:hover:border-violet-600 transition-colors">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="px-2 py-0.5 bg-violet-200 dark:bg-violet-800 text-violet-700 dark:text-violet-300 rounded text-[9px] font-black">{bill.number}</span>
+                          <span className="text-[9px] text-slate-400">{bill.origin_chamber}</span>
+                        </div>
+                        <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200 leading-snug">{bill.title}</div>
+                        <div className="text-[10px] text-slate-500 mt-1">{bill.latest_action} — {bill.action_date}</div>
+                      </a>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Sports Odds */}
+              {oddsData && oddsData.events?.length > 0 && (
+                <Section title="Bookmaker Odds" defaultOpen={false}>
+                  <div className="space-y-2">
+                    {oddsData.events.slice(0, 5).map((evt, i) => (
+                      <div key={i} className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800/30">
+                        <div className="text-[9px] text-orange-500 uppercase font-black tracking-widest mb-1">{evt.sport}</div>
+                        <div className="text-[12px] font-bold text-slate-800 dark:text-slate-200">{evt.home} vs {evt.away}</div>
+                        <div className="flex gap-3 mt-2">
+                          {Object.entries(evt.odds).map(([team, odd]) => (
+                            <span key={team} className="px-2 py-1 bg-white dark:bg-slate-800 rounded-lg text-[10px] font-bold border border-slate-200 dark:border-slate-700">
+                              {team}: <span className={Number(odd) > 0 ? 'text-green-600' : 'text-red-500'}>{Number(odd) > 0 ? '+' : ''}{odd}</span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {/* Media Sentiment (GDELT Tone) */}
+              {sentimentData?.found && sentimentData.values.length > 0 && (
+                <Section title="Media Sentiment" defaultOpen={false}>
+                  <div className="p-5 bg-white dark:bg-slate-800/40 rounded-2xl border border-slate-100 dark:border-slate-700/50 shadow-sm">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="text-[10px] text-slate-400 uppercase font-black tracking-widest mb-1">Average Media Tone</div>
+                        <div className={`text-2xl font-black ${sentimentData.avg_tone >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                          {sentimentData.avg_tone >= 0 ? '+' : ''}{sentimentData.avg_tone.toFixed(2)}
+                        </div>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-[10px] font-black ${
+                        sentimentData.avg_tone > 1 ? 'bg-green-100 text-green-700' :
+                        sentimentData.avg_tone < -1 ? 'bg-red-100 text-red-700' :
+                        'bg-slate-100 text-slate-600'
+                      }`}>
+                        {sentimentData.avg_tone > 1 ? 'Positive' : sentimentData.avg_tone < -1 ? 'Negative' : 'Neutral'}
+                      </div>
+                    </div>
+                    <SparkChart data={sentimentData.values} color={sentimentData.avg_tone >= 0 ? '#10b981' : '#ef4444'} height={50} />
                   </div>
                 </Section>
               )}
@@ -337,7 +463,10 @@ export default function ContextModal({ market, isOpen }: ContextModalProps) {
                     crypto: cryptoData,
                     climate: climateData,
                     finance: financeData,
-                    wiki: wikiData
+                    wiki: wikiData,
+                    sentiment: sentimentData,
+                    politics: politicsData,
+                    odds: oddsData,
                   }}
                 />
               </div>

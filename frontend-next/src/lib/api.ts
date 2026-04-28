@@ -142,6 +142,13 @@ export interface ClimateData {
     temp_min: number[];
     precipitation: number[];
   } | null;
+  natural_events: Array<{
+    title: string;
+    categories: string[];
+    date: string;
+    coordinates: number[];
+    link: string;
+  }>;
 }
 
 export async function fetchClimate(lat: number, lng: number, location: string): Promise<ClimateData> {
@@ -172,6 +179,7 @@ export interface FinanceData {
   location: string;
   series: Record<string, { dates: string[]; values: number[] }>;
   stock: { dates: string[]; values: number[] } | null;
+  world_bank: Record<string, { latest_value: number; year: string; country: string }> | null;
 }
 
 export async function fetchFinance(location: string): Promise<FinanceData> {
@@ -201,6 +209,16 @@ export interface CryptoData {
     ath_change_pct: number;
   } | null;
   sparkline: number[] | null;
+  defi_tvl: {
+    chain: string;
+    current_tvl: number;
+    dates: string[];
+    values: number[];
+  } | null;
+  fear_greed: {
+    value: number;
+    label: string;
+  } | null;
   error?: string;
 }
 
@@ -221,6 +239,65 @@ export interface WikiData {
 export async function fetchWiki(query: string): Promise<WikiData> {
   return fetchJSON<WikiData>(`${API_BASE}/wiki?q=${encodeURIComponent(query)}`);
 }
+
+// ─── Sentiment (GDELT Tone + Fear & Greed) ───
+export interface SentimentData {
+  found: boolean;
+  dates: string[];
+  values: number[];
+  avg_tone: number;
+}
+
+export interface FearGreedData {
+  found: boolean;
+  current: { value: string; value_classification: string } | null;
+  history: Array<{ value: number; label: string; timestamp: number }>;
+}
+
+export async function fetchSentiment(query: string): Promise<SentimentData> {
+  return fetchJSON<SentimentData>(`${API_BASE}/sentiment/tone?q=${encodeURIComponent(query)}`);
+}
+
+export async function fetchFearGreed(limit?: number): Promise<FearGreedData> {
+  return fetchJSON<FearGreedData>(`${API_BASE}/sentiment/fear-greed?limit=${limit || 30}`);
+}
+
+// ─── Politics (Congress.gov) ───
+export interface PoliticsData {
+  bills: Array<{
+    number: string;
+    title: string;
+    congress: number;
+    latest_action: string;
+    action_date: string;
+    url: string;
+    origin_chamber: string;
+  }>;
+  total: number;
+}
+
+export async function fetchPolitics(query: string): Promise<PoliticsData> {
+  return fetchJSON<PoliticsData>(`${API_BASE}/politics/bills?q=${encodeURIComponent(query)}`);
+}
+
+// ─── Odds (The Odds API) ───
+export interface OddsData {
+  events: Array<{
+    home: string;
+    away: string;
+    sport: string;
+    start: string;
+    odds: Record<string, number>;
+  }>;
+  sport: string;
+  total: number;
+}
+
+export async function fetchOdds(query: string): Promise<OddsData> {
+  return fetchJSON<OddsData>(`${API_BASE}/odds?q=${encodeURIComponent(query)}`);
+}
+
+// ─── Agent Chat ───
 export async function fetchAgentChat(message: string, context: any): Promise<{ response: string }> {
   const resp = await fetch(`${API_BASE}/agent/chat`, {
     method: 'POST',

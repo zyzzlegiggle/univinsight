@@ -111,6 +111,7 @@ export default function MarketModal({ market, isOpen, onClose, onAnalyze, isCont
       {isOpen && (
         <>
           <motion.div
+            key={market.condition_id}
             initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.25, ease: 'easeOut' }}
             className="fixed top-[100px] left-4 bottom-4 w-[360px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl z-[1000] flex flex-col shadow-2xl overflow-hidden"

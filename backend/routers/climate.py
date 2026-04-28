@@ -1,9 +1,37 @@
-"""Climate — Open-Meteo API (completely free, no key needed)."""
+"""Climate — Open-Meteo + NASA EONET natural events (all free, no keys)."""
 import httpx
 from fastapi import APIRouter, Query
 from config import OPEN_METEO_API_URL
 
 router = APIRouter(prefix="/api/climate", tags=["climate"])
+
+
+async def _fetch_eonet_events(client: httpx.AsyncClient) -> list[dict]:
+    """Fetch recent natural events from NASA EONET (free, no key)."""
+    try:
+        resp = await client.get(
+            "https://eonet.gsfc.nasa.gov/api/v3/events",
+            params={"limit": 10, "status": "open"},
+            timeout=12.0,
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            events = []
+            for e in data.get("events", []):
+                categories = [c.get("title", "") for c in e.get("categories", [])]
+                geometry = e.get("geometry", [{}])
+                coords = geometry[-1].get("coordinates", []) if geometry else []
+                events.append({
+                    "title": e.get("title", ""),
+                    "categories": categories,
+                    "date": geometry[-1].get("date", "") if geometry else "",
+                    "coordinates": coords,
+                    "link": e.get("link", ""),
+                })
+            return events
+    except Exception as e:
+        print(f"[EONET] Error: {e}")
+    return []
 
 
 @router.get("")
@@ -17,6 +45,7 @@ async def get_climate_data(
         "current": None,
         "forecast": None,
         "historical": None,
+        "natural_events": [],
     }
 
     async with httpx.AsyncClient(timeout=15.0) as client:
@@ -83,5 +112,8 @@ async def get_climate_data(
                     }
         except Exception:
             pass
+
+        # ── NASA EONET Natural Events ───────────────
+        result["natural_events"] = await _fetch_eonet_events(client)
 
     return result
