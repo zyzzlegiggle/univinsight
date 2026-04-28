@@ -221,3 +221,12 @@ export interface WikiData {
 export async function fetchWiki(query: string): Promise<WikiData> {
   return fetchJSON<WikiData>(`${API_BASE}/wiki?q=${encodeURIComponent(query)}`);
 }
+export async function fetchAgentChat(message: string, context: any): Promise<{ response: string }> {
+  const resp = await fetch(`${API_BASE}/agent/chat`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, context }),
+  });
+  if (!resp.ok) throw new Error('Agent communication failed');
+  return resp.json();
+}

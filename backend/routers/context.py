@@ -151,7 +151,7 @@ def _get_gemini_model():
     try:
         import google.generativeai as genai
         genai.configure(api_key=GEMINI_API_KEY)
-        _gemini_model = genai.GenerativeModel("gemini-2.5-flash-lite")
+        _gemini_model = genai.GenerativeModel("gemini-3.1-lite-preview")
         return _gemini_model
     except Exception as e:
         print(f"[Context] Failed to init Gemini: {e}")
@@ -208,64 +208,84 @@ _llm_cache: dict[str, dict] = {}
 
 async def llm_classify_batch(titles: list[str]) -> list[dict]:
     """
-    Layer 2: Classify a batch of market titles using Gemini Flash.
-    Returns list of {"categories": [...], "entity": "..."} dicts.
-    Falls back to keyword classification on any failure.
+    Classify a batch of market titles.
+    Priority: 1) DO Gradient Agent  2) Gemini Flash  3) Keyword rules
     """
-    model = _get_gemini_model()
-    if model is None:
-        # No API key — fall back to keywords for all
-        return [{"categories": keyword_classify(t), "entity": extract_entity(t)} for t in titles]
+    from config import DO_AGENT_ENDPOINT, DO_AGENT_ACCESS_KEY, GEMINI_API_KEY
 
-    # Check cache first; collect uncached indices
-    results = [None] * len(titles)
-    uncached_indices = []
-    for i, t in enumerate(titles):
-        if t in _llm_cache:
-            results[i] = _llm_cache[t]
-        else:
-            uncached_indices.append(i)
-
-    if not uncached_indices:
-        return results  # All cached
-
-    # Build prompt for uncached titles only
-    uncached_titles = [titles[i] for i in uncached_indices]
-
-    # Batch in groups of 30 to avoid huge prompts
-    BATCH_SIZE = 30
-    for batch_start in range(0, len(uncached_titles), BATCH_SIZE):
-        batch = uncached_titles[batch_start:batch_start + BATCH_SIZE]
-        batch_indices = uncached_indices[batch_start:batch_start + BATCH_SIZE]
-
-        prompt = CLASSIFY_PROMPT
-        for j, t in enumerate(batch):
-            prompt += f"{j}. {t}\n"
-
+    # ── Try DigitalOcean Gradient Agent first (if configured) ──
+    if DO_AGENT_ENDPOINT and DO_AGENT_ACCESS_KEY:
         try:
-            response = await asyncio.to_thread(model.generate_content, prompt)
-            text = response.text.strip()
-            parsed = _extract_json_from_text(text)
-            
-            if not isinstance(parsed, list):
-                print(f"[Context] Gemini returned non-list JSON: {text[:200]}")
-                continue
+            from routers.agent import classify_markets
+            from pydantic import BaseModel
 
-            for item in parsed:
-                idx = item.get("index", -1)
-                if 0 <= idx < len(batch):
-                    cats = [c for c in item.get("categories", []) if c in VALID_CATEGORIES]
-                    entity = item.get("entity", "")
-                    result = {"categories": cats, "entity": entity}
-                    real_idx = batch_indices[idx]
-                    results[real_idx] = result
-                    _llm_cache[titles[real_idx]] = result
+            class _Req(BaseModel):
+                titles: list[str]
 
+            # Only send first 30 to DO to prevent timeouts
+            do_titles = titles[:30]
+            resp = await classify_markets(_Req(titles=do_titles))
+            agent_results = resp.get("results", [])
+
+            if agent_results:
+                results = []
+                for i, r in enumerate(agent_results):
+                    if r:
+                        results.append(r)
+                        _llm_cache[titles[i]] = r
+                    else:
+                        results.append(None)
+                
+                # Fill the rest with None to be handled by other tiers
+                results.extend([None] * (len(titles) - len(results)))
+                
+                # If we got meaningful results, proceed to handle gaps
+                if any(r is not None for r in results):
+                    # Continue to fill gaps below
+                    pass 
+                else:
+                    results = [None] * len(titles)
         except Exception as e:
-            print(f"[Context] Gemini batch classify failed: {e}")
-            # Continue to next batch, results will be filled by fallback logic below
+            print(f"[Context] DO Agent classification failed: {e}")
+            results = [None] * len(titles)
+    else:
+        results = [None] * len(titles)
 
-    # Fill any remaining gaps with keyword fallback
+    # ── Check Cache for remaining gaps ──
+    for i, t in enumerate(titles):
+        if results[i] is None and t in _llm_cache:
+            results[i] = _llm_cache[t]
+
+    # ── Try Gemini Flash for remaining gaps (limit to 30 more) ──
+    if GEMINI_API_KEY:
+        uncached_indices = [i for i, r in enumerate(results) if r is None]
+        if uncached_indices:
+            # Only classify first 30 uncached to keep it fast
+            to_classify_indices = uncached_indices[:30]
+            uncached_titles = [titles[i] for i in to_classify_indices]
+            
+            model = _get_gemini_model()
+            if model:
+                prompt = CLASSIFY_PROMPT
+                for j, t in enumerate(uncached_titles):
+                    prompt += f"{j}. {t}\n"
+                
+                try:
+                    response = await asyncio.to_thread(model.generate_content, prompt)
+                    parsed = _extract_json_from_text(response.text.strip())
+                    if isinstance(parsed, list):
+                        for item in parsed:
+                            idx = item.get("index", -1)
+                            if 0 <= idx < len(uncached_titles):
+                                cats = [c for c in item.get("categories", []) if c in VALID_CATEGORIES]
+                                result = {"categories": cats, "entity": item.get("entity", "")}
+                                real_idx = to_classify_indices[idx]
+                                results[real_idx] = result
+                                _llm_cache[titles[real_idx]] = result
+                except Exception as e:
+                    print(f"[Context] Gemini classification failed: {e}")
+
+    # ── Final fallback: keyword rules ──
     for i in range(len(results)):
         if results[i] is None:
             results[i] = {

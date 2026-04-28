@@ -8,7 +8,7 @@ interface WordCloudProps {
   height?: number;
 }
 
-export default function WordCloud({ words, width = 300, height = 200 }: WordCloudProps) {
+export default function WordCloud({ words, width = 280, height = 140 }: WordCloudProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function WordCloud({ words, width = 300, height = 200 }: WordClou
     // Filter and shuffle words
     const items = words.map((w, i) => ({
       text: w,
-      size: Math.max(10, 24 - i * 1.5), // Gradually smaller
+      size: Math.max(10, 20 - i * 1.2), // Gradually smaller
       color: `hsl(${210 + Math.random() * 40}, 70%, ${40 + Math.random() * 20}%)`,
     }));
 
