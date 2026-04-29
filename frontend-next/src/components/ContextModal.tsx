@@ -229,23 +229,29 @@ export default function ContextModal({ market, isOpen, relatedTweets }: ContextM
 
               {/* Social Intelligence Slider */}
               {relatedTweets && relatedTweets.length > 0 && (
-                <Section title="Social Intelligence">
+                <Section title="Linked Social Insights">
                   <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide snap-x">
                     {relatedTweets.map((t) => (
-                      <div key={t.id} className="min-w-[280px] snap-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-700/50">
+                      <div key={t.id} className="min-w-[280px] snap-center bg-slate-50/50 dark:bg-slate-800/30 rounded-2xl p-4 border border-indigo-200/50 dark:border-indigo-500/20 shadow-sm shadow-indigo-100/50 dark:shadow-none">
                         <div className="flex items-center gap-2 mb-3">
                           <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center p-1.5 shrink-0">
                             <X className="w-full h-full text-white fill-current" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="text-[11px] font-black text-slate-900 dark:text-white truncate">Polymarket</div>
-                            <div className="text-[9px] text-slate-500 font-bold uppercase tracking-widest truncate">Social Update</div>
+                            <div className="text-[11px] font-black text-slate-900 dark:text-white truncate">Polymarket Intel</div>
+                            <div className="text-[9px] text-indigo-500 font-bold uppercase tracking-widest truncate">Mapped Relation</div>
                           </div>
-                          <a href={t.url} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
-                            <ExternalLink className="w-3 h-3 text-slate-400" />
-                          </a>
+                          <div className="flex gap-1">
+                            <a href={t.url} target="_blank" rel="noopener noreferrer" className="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-lg transition-colors">
+                              <ExternalLink className="w-3 h-3 text-slate-400" />
+                            </a>
+                          </div>
                         </div>
-                        <p className="text-[12px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3 italic">"{t.text}"</p>
+                        <p className="text-[12px] text-slate-600 dark:text-slate-400 leading-relaxed line-clamp-3 italic mb-3">"{t.text}"</p>
+                        <div className="flex justify-between items-center">
+                           <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{t.locations[0]}</span>
+                           <span className="h-1 w-8 bg-indigo-500/20 rounded-full" />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -505,6 +511,7 @@ export default function ContextModal({ market, isOpen, relatedTweets }: ContextM
                     politics: politicsData,
                     odds: oddsData,
                   }}
+                  autoTrigger={!isLoading}
                 />
               </div>
             </motion.div>

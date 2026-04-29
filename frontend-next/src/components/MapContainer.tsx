@@ -18,6 +18,10 @@ interface MapContainerProps {
   teleportCoords?: [number, number] | null;
   selectedCategory?: string | null;
   socialConnections?: { tweet: TweetData; market: MarketHeadline }[];
+  onClearSelection?: () => void;
+  selectedCoords?: [number, number] | null;
+  selectedTweet?: TweetData | null;
+  onTweetClick?: (tweet: TweetData) => void;
 }
 
 mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN || '';
@@ -58,7 +62,7 @@ function getPopupHTML(p: any): string {
       </div>
       <div style="display:flex;gap:4px;align-items:center;flex-wrap:wrap;">
         <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(34,197,94,0.1);color:#22c55e;border:1px solid rgba(34,197,94,0.2)">
-          ${p.top_outcome || 'Yes'} ${p.probability || 0}%
+          ${p.top_outcome || (p.outcomes && p.outcomes.length > 0 ? p.outcomes.reduce((prev: any, cur: any) => prev.probability > cur.probability ? prev : cur).title : 'Yes')} ${p.probability || 0}%
         </span>
         <span style="padding:2px 5px;border-radius:4px;font-size:9px;font-weight:700;background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2)">
           No ${Math.round((100 - (p.probability || 0)) * 10) / 10}%
@@ -83,7 +87,7 @@ function getTweetPopupHTML(p: any) {
       </div>
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
         <div style="width:32px;height:32px;border-radius:8px;background:#000;display:flex;items-center;justify-content:center;overflow:hidden;">
-          <img src="https://pbs.twimg.com/profile_images/1220442345065750528/l6p28vL8_400x400.jpg" style="width:100%;height:100%;object-fit:cover;" />
+          <img src="https://unavatar.io/twitter/polymarket" style="width:100%;height:100%;object-fit:cover;" />
         </div>
         <div>
           <div style="font-size:12px;font-weight:900;color:#0f172a;line-height:1">Polymarket</div>
@@ -121,15 +125,32 @@ function greatCircleArc(start: [number, number], end: [number, number], steps = 
   return points;
 }
 
-const GEO_CACHE_KEY = 'univinsight_geo_v3';
+const GEO_CACHE_KEY = 'univinsight_geo_v4';
 
 export async function geocode(query: string) {
+  if (!query) return null;
+  const q = query.toLowerCase().trim();
+  try {
+    const cached = localStorage.getItem(GEO_CACHE_KEY);
+    const store = cached ? JSON.parse(cached) : {};
+    if (store[q]) return store[q];
+  } catch (e) {}
+
   try {
     const resp = await fetch(
       `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxgl.accessToken}&limit=1&types=place,locality,country,region`
     );
     const data = await resp.json();
-    if (data.features?.length > 0) return data.features[0].geometry.coordinates;
+    if (data.features?.length > 0) {
+      const coords = data.features[0].geometry.coordinates;
+      try {
+        const cached = localStorage.getItem(GEO_CACHE_KEY);
+        const store = cached ? JSON.parse(cached) : {};
+        store[q] = coords;
+        localStorage.setItem(GEO_CACHE_KEY, JSON.stringify(store));
+      } catch (e) {}
+      return coords;
+    }
   } catch { }
   return null;
 }
@@ -148,7 +169,10 @@ export default function MapContainer({
   persistentSocialHistory,
   teleportCoords,
   selectedCategory,
-  socialConnections
+  socialConnections,
+  onClearSelection,
+  selectedTweet,
+  onTweetClick
 }: MapContainerProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
@@ -164,6 +188,10 @@ export default function MapContainer({
   marketsRef.current = markets;
   const onMarketClickRef = useRef(onMarketClick);
   onMarketClickRef.current = onMarketClick;
+  const onClearSelectionRef = useRef(onClearSelection);
+  onClearSelectionRef.current = onClearSelection;
+  const onTweetClickRef = useRef(onTweetClick);
+  onTweetClickRef.current = onTweetClick;
 
   const lastGeoJsonRef = useRef<any>({ type: 'FeatureCollection', features: [] });
   const currentTheme = resolvedTheme || 'light';
@@ -301,36 +329,69 @@ export default function MapContainer({
     hoverPopup.current = new mapboxgl.Popup({ closeButton: false, closeOnClick: false, offset: 15 });
     pinnedPopup.current = new mapboxgl.Popup({ closeButton: true, closeOnClick: false, offset: 15 });
 
-    // Hover listeners
+    // ─── Hover Persistence Logic ───
+    const hoverTimeout = { current: null as any };
+
+    const clearHover = () => {
+      if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+    };
+
+    const scheduleHide = () => {
+      clearHover();
+      hoverTimeout.current = setTimeout(() => {
+        hoverPopup.current?.remove();
+      }, 200); // 200ms grace period to move to the popup
+    };
+
+    // Attach listeners to popup element once it's in the DOM
+    const attachPopupListeners = () => {
+      const el = hoverPopup.current?.getElement();
+      if (el) {
+        el.onmouseenter = clearHover;
+        el.onmouseleave = scheduleHide;
+      }
+    };
+
+    // Hover listeners for markets
     m.on('mouseenter', 'market-dots', (e) => {
       if (!e.features?.length) return;
+      clearHover();
       m.getCanvas().style.cursor = 'pointer';
       const p = e.features[0].properties as any;
       const c = (e.features[0].geometry as any).coordinates.slice();
       hoverPopup.current?.setLngLat(c).setHTML(getPopupHTML(p)).addTo(m);
+      attachPopupListeners();
     });
 
     m.on('mouseleave', 'market-dots', () => {
       m.getCanvas().style.cursor = '';
-      hoverPopup.current?.remove();
+      scheduleHide();
     });
 
+    // Hover listeners for social
     m.on('mouseenter', 'social-persistent', (e) => {
       if (!e.features?.length) return;
+      clearHover();
       m.getCanvas().style.cursor = 'pointer';
       const p = e.features[0].properties as any;
       const c = (e.features[0].geometry as any).coordinates.slice();
       hoverPopup.current?.setLngLat(c).setHTML(getTweetPopupHTML(p)).addTo(m);
+      attachPopupListeners();
     });
 
     m.on('mouseleave', 'social-persistent', () => {
       m.getCanvas().style.cursor = '';
-      hoverPopup.current?.remove();
+      scheduleHide();
     });
 
     // Click dot listener
     m.on('click', 'market-dots', (e) => {
       if (!e.features?.length) return;
+
+      // Priority to social markers if they overlap
+      const social = m.queryRenderedFeatures(e.point, { layers: ['social-persistent'] });
+      if (social.length > 0) return;
+
       const feature = e.features[0];
       const coords = (feature.geometry as any).coordinates as [number, number];
       const props = feature.properties as any;
@@ -339,11 +400,6 @@ export default function MapContainer({
 
       onMarketClickRef.current(mkt, coords);
       m.flyTo({ center: coords, zoom: 4, duration: 1200 });
-
-      // Persistent pinned popup
-      pinnedPopup.current?.setLngLat(coords).setHTML(getPopupHTML(props)).addTo(m);
-      // Remove hover popup to avoid overlap
-      hoverPopup.current?.remove();
 
       const data = lastGeoJsonRef.current;
       if (data?.features) {
@@ -354,20 +410,34 @@ export default function MapContainer({
             type: 'Feature',
             geometry: { type: 'LineString', coordinates: greatCircleArc(sibCoords[0], c2) },
           }));
-          const connSrc = m.getSource('connections') as mapboxgl.GeoJSONSource;
           if (connSrc) connSrc.setData({ type: 'FeatureCollection', features: lines as any });
         }
       }
     });
 
+    // Click social listener
+    m.on('click', 'social-persistent', (e) => {
+      if (!e.features?.length) return;
+      const p = e.features[0].properties as any;
+      
+      const tweet = {
+        id: p.id || '',
+        text: p.text,
+        url: p.url,
+        locations: [p.location],
+        created_at: new Date().toISOString(),
+        author_id: ''
+      };
+      
+      onTweetClickRef.current?.(tweet as any);
+    });
+
     // Click background listener
     m.on('click', (e) => {
       if (!m.getLayer('market-dots')) return;
-      const features = m.queryRenderedFeatures(e.point, { layers: ['market-dots'] });
+      const features = m.queryRenderedFeatures(e.point, { layers: ['market-dots', 'social-persistent'] });
       if (!features.length) {
-        pinnedPopup.current?.remove();
-        const connSrc = m.getSource('connections') as mapboxgl.GeoJSONSource;
-        if (connSrc) connSrc.setData({ type: 'FeatureCollection', features: [] });
+        onClearSelectionRef.current?.();
       }
     });
 
@@ -554,11 +624,53 @@ export default function MapContainer({
     updateSocialPings();
   }, [pingMarketId, pingLocations, isReady]);
 
-  // Effect for Manual Teleportation
+  // Effect for Manual Teleportation and Popup Trigger
   useEffect(() => {
-    if (!isReady || !map.current || !teleportCoords) return;
-    map.current.flyTo({ center: teleportCoords, zoom: 6, duration: 2500 });
-  }, [teleportCoords, isReady]);
+    if (!isReady || !map.current) return;
+    const m = map.current;
+
+    const handleExternalTrigger = async () => {
+      if (teleportCoords) {
+        m.flyTo({ center: teleportCoords, zoom: 6, duration: 2000 });
+      }
+
+      if (selectedTweet) {
+        const coords = selectedCoords || await geocode(selectedTweet.locations[0] || 'Washington D.C.');
+        if (coords) {
+          pinnedPopup.current?.setLngLat(coords)
+            .setHTML(getTweetPopupHTML({
+              text: selectedTweet.text,
+              url: selectedTweet.url
+            }))
+            .addTo(m);
+          hoverPopup.current?.remove();
+        }
+        return;
+      }
+
+      if (selectedMarketId) {
+        const market = markets.find(mk => mk.condition_id === selectedMarketId);
+        if (market) {
+          // IMPORTANT: Use selectedCoords if provided (map click), otherwise fallback to geocoding (search/sidebar)
+          const coords = selectedCoords || await geocode(market.location || 'Washington D.C.');
+          if (coords) {
+            pinnedPopup.current?.setLngLat(coords)
+              .setHTML(getPopupHTML(market))
+              .addTo(m);
+            
+            hoverPopup.current?.remove();
+          }
+        }
+      } else {
+        // Selection cleared
+        pinnedPopup.current?.remove();
+        const connSrc = m.getSource('connections') as mapboxgl.GeoJSONSource;
+        if (connSrc) connSrc.setData({ type: 'FeatureCollection', features: [] });
+      }
+    };
+
+    handleExternalTrigger();
+  }, [teleportCoords, selectedMarketId, selectedCoords, selectedTweet, markets, isReady]);
 
   // Effect for Persistent Social Markers
   useEffect(() => {

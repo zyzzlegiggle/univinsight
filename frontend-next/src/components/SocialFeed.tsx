@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { TweetData } from '@/lib/api';
 import { X, ExternalLink, Calendar, MessageSquare } from 'lucide-react';
 
@@ -12,6 +12,49 @@ interface SocialFeedProps {
 }
 
 export default function SocialFeed({ tweets, onTweetClick, onClose }: SocialFeedProps) {
+  const scrollRef = React.useRef<HTMLDivElement>(null);
+  const [isAtTop, setIsAtTop] = React.useState(true);
+  const [newCount, setNewCount] = React.useState(0);
+  const [lastTopId, setLastTopId] = React.useState<string | null>(tweets[0]?.id || null);
+
+  // Handle scroll detection
+  const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const top = e.currentTarget.scrollTop;
+    const atTop = top < 50;
+    setIsAtTop(atTop);
+    
+    if (atTop) {
+      setNewCount(0);
+      setLastTopId(tweets[0]?.id || null);
+    }
+  };
+
+  // Detect new tweets while scrolled down
+  React.useEffect(() => {
+    if (tweets.length === 0) return;
+
+    if (isAtTop) {
+      setLastTopId(tweets[0].id);
+      setNewCount(0);
+    } else if (lastTopId) {
+      // Find how many tweets are newer than the last one we saw at the top
+      const idx = tweets.findIndex(t => t.id === lastTopId);
+      if (idx !== -1) {
+        setNewCount(idx);
+      } else {
+        // If lastTopId is no longer in the list (highly unlikely with history), just show many
+        setNewCount(tweets.length);
+      }
+    }
+  }, [tweets, isAtTop, lastTopId]);
+
+  const scrollToTop = () => {
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+    setNewCount(0);
+    setLastTopId(tweets[0]?.id || null);
+    setIsAtTop(true);
+  };
+
   return (
     <motion.div 
       initial={{ x: 400, opacity: 0 }}
@@ -19,9 +62,9 @@ export default function SocialFeed({ tweets, onTweetClick, onClose }: SocialFeed
       exit={{ x: 400, opacity: 0 }}
       className="fixed top-32 right-6 bottom-6 w-[380px] z-[2000] flex flex-col"
     >
-      <div className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-2xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-[0_40px_80px_-15px_rgba(0,0,0,0.35)] overflow-hidden flex flex-col h-full">
+      <div className="bg-white/80 dark:bg-slate-950/80 backdrop-blur-2xl border border-slate-200 dark:border-slate-800 rounded-3xl shadow-[0_40px_80px_-15px_rgba(0,0,0,0.35)] overflow-hidden flex flex-col h-full relative">
         {/* Header */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
           <h2 className="text-[12px] font-black text-slate-900 dark:text-white uppercase tracking-[0.2em]">Live Feed</h2>
           <button 
             onClick={onClose}
@@ -31,8 +74,32 @@ export default function SocialFeed({ tweets, onTweetClick, onClose }: SocialFeed
           </button>
         </div>
 
+        {/* New Tweets Notification */}
+        <AnimatePresence>
+          {newCount > 0 && !isAtTop && (
+            <motion.div
+              initial={{ y: -20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -20, opacity: 0 }}
+              className="absolute top-[80px] left-0 right-0 z-20 flex justify-center pointer-events-none"
+            >
+              <button 
+                onClick={scrollToTop}
+                className="pointer-events-auto bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-full shadow-xl flex items-center gap-2 transition-all hover:scale-105 active:scale-95"
+              >
+                <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                {newCount} New {newCount === 1 ? 'Tweet' : 'Tweets'}
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Scrollable Feed */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide">
+        <div 
+          ref={scrollRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-hide"
+        >
           {tweets.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-slate-400">
               <div className="w-12 h-12 bg-slate-100 dark:bg-slate-900 rounded-2xl flex items-center justify-center mb-4">
@@ -57,7 +124,7 @@ export default function SocialFeed({ tweets, onTweetClick, onClose }: SocialFeed
 
                 <div className="flex items-start gap-3">
                   <img 
-                    src="https://pbs.twimg.com/profile_images/1220442345065750528/l6p28vL8_400x400.jpg" 
+                    src="https://unavatar.io/twitter/polymarket" 
                     className="w-8 h-8 rounded-lg object-cover"
                   />
                   <div className="flex-1">
@@ -82,7 +149,6 @@ export default function SocialFeed({ tweets, onTweetClick, onClose }: SocialFeed
             ))
           )}
         </div>
-
       </div>
     </motion.div>
   );

@@ -9,13 +9,21 @@ interface MarketAgentProps {
   market: MarketHeadline;
   context: any;
   relatedTweets?: any[];
+  autoTrigger?: boolean;
 }
 
-export default function MarketAgent({ market, context, relatedTweets }: MarketAgentProps) {
+export default function MarketAgent({ market, context, relatedTweets, autoTrigger }: MarketAgentProps) {
   const [history, setHistory] = useState<{ question: string; answer: string }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Auto-trigger analysis when data is ready
+  useEffect(() => {
+    if (autoTrigger && history.length === 0 && !loading && context && Object.keys(context).some(k => context[k] !== null)) {
+      handleSend("Analyze this market and provide key insights based on the provided data.");
+    }
+  }, [autoTrigger, context]);
 
   useEffect(() => {
     if (scrollRef.current) {
@@ -23,11 +31,11 @@ export default function MarketAgent({ market, context, relatedTweets }: MarketAg
     }
   }, [history, loading]);
 
-  const handleSend = async () => {
-    if (!input.trim() || loading) return;
+  const handleSend = async (forcedMessage?: string) => {
+    const question = forcedMessage || input.trim();
+    if (!question || loading) return;
 
-    const question = input.trim();
-    setInput('');
+    if (!forcedMessage) setInput('');
     setLoading(true);
 
     try {
@@ -39,7 +47,8 @@ export default function MarketAgent({ market, context, relatedTweets }: MarketAg
         end_date: market.end_date,
         location: market.location,
         categories: market.categories,
-        social_intelligence: relatedTweets,
+        // Limit to most recent 15 tweets to keep token costs low while maintaining intelligence
+        social_intelligence: relatedTweets ? relatedTweets.slice(0, 15) : [],
         intelligence: context,
       };
 

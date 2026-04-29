@@ -21,6 +21,7 @@ export default function Home() {
   const [markets, setMarkets] = useState<MarketHeadline[]>([]);
   const [selectedMarket, setSelectedMarket] = useState<MarketHeadline | null>(null);
   const [selectedCoords, setSelectedCoords] = useState<[number, number] | null>(null);
+  const [selectedTweet, setSelectedTweet] = useState<TweetData | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isContextOpen, setIsContextOpen] = useState(false);
   const [isFeedOpen, setIsFeedOpen] = useState(true);
@@ -128,15 +129,33 @@ export default function Home() {
   const handleMarketClick = useCallback((market: MarketHeadline, coords?: [number, number]) => {
     setSelectedMarket(market);
     setSelectedCoords(coords || null);
+    setSelectedTweet(null); // Clear tweet if selecting market
     setIsModalOpen(true);
     setIsFeedOpen(false);
   }, []);
 
-  const handleMarketSelect = useCallback((market: MarketHeadline) => {
+  const handleMarketSelect = useCallback(async (market: MarketHeadline) => {
     setSelectedMarket(market);
-    setSelectedCoords(null);
+    setSelectedTweet(null); // Clear tweet if selecting market
     setIsModalOpen(true);
     setIsFeedOpen(false);
+
+    // Try to get coords from the market object if it has them, or geocode
+    const loc = market.location || (market.locations && market.locations[0]);
+    if (loc) {
+       const coords = await geocode(loc);
+       setSelectedCoords(coords || null);
+    } else {
+       setSelectedCoords(null);
+    }
+  }, []);
+
+  const handleClearSelection = useCallback(() => {
+    setSelectedMarket(null);
+    setSelectedCoords(null);
+    setSelectedTweet(null);
+    setIsModalOpen(false);
+    setIsContextOpen(false);
   }, []);
 
   const handleFeedToggle = useCallback(() => {
@@ -162,25 +181,42 @@ export default function Home() {
 
   const handleTweetClick = useCallback(async (tweet: TweetData) => {
     if (tweet.locations.length > 0) {
-      const coords = await geocode(tweet.locations[0]);
+      const loc = tweet.locations[0];
+      const coords = await geocode(loc);
       if (coords) {
         setTeleportCoords(coords);
+        setSelectedCoords(coords);
+        setSelectedTweet(tweet);
+        
+        // Ensure market detail modal is closed when focused on a tweet
+        setSelectedMarket(null);
+        setIsModalOpen(false);
+
         // Reset teleport so same click works again if moved
         setTimeout(() => setTeleportCoords(null), 100);
       }
     }
-  }, []);
+  }, [markets]);
 
   const filteredMarkets = markets.filter(m => {
     const matchesSearch = !searchQuery.trim() || m.title.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Check if market matches category normally
     const matchesCategory = !selectedCategory || (m.categories || []).includes(selectedCategory);
+    
+    // Special handling for 'social' category: include markets with social connections
+    if (selectedCategory === 'social') {
+      const hasSocialConn = socialConnections.some(conn => conn.market.condition_id === m.condition_id);
+      return matchesSearch && (matchesCategory || hasSocialConn);
+    }
+
     return matchesSearch && matchesCategory;
   });
 
   const uniqueTweets = Array.from(new Map(socialHistory.map(item => [item.tweet.id, item.tweet])).values());
 
   const socialConnections: { tweet: TweetData; market: MarketHeadline }[] = [];
-  if (!selectedCategory || selectedCategory === 'social' || !selectedCategory) {
+  if (!selectedCategory || selectedCategory === 'social') {
     socialHistory.forEach(item => {
       markets.forEach(m => {
         if (m.location === item.location) {
@@ -226,6 +262,9 @@ export default function Home() {
           teleportCoords={teleportCoords}
           selectedCategory={selectedCategory}
           socialConnections={socialConnections}
+          onClearSelection={handleClearSelection}
+          selectedTweet={selectedTweet}
+          onTweetClick={handleTweetClick}
         />
 
         <MarketModal

@@ -15,7 +15,7 @@ from fastapi import APIRouter, Query
 router = APIRouter(prefix="/api/context", tags=["context"])
 
 # ─── Valid Categories ─────────────────────────────────
-VALID_CATEGORIES = ["climate", "sports", "crypto", "finance", "politics", "entertainment", "tech", "science"]
+VALID_CATEGORIES = ["climate", "sports", "crypto", "finance", "politics", "entertainment", "tech", "science", "social"]
 
 # ─── Layer 1: Keyword Rules with Exclusions ───────────
 # Format: (keyword_set, exclusion_set)
@@ -98,6 +98,13 @@ RULES: dict[str, tuple[set[str], set[str]]] = {
             "earthquake", "tsunami", "volcano", "eruption", "asteroid",
             "pandemic", "virus", "vaccine", "outbreak", "who declares",
             "nasa", "space mission", "mars", "moon landing",
+        },
+        set(),
+    ),
+    "social": (
+        {
+            "polymarket", "tweet", "post", "x.com", "twitter", "social media",
+            "announcement", "live now", "odds update",
         },
         set(),
     ),

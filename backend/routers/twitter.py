@@ -1,6 +1,7 @@
 import os
 import httpx
 import random
+import datetime
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import List, Optional
@@ -9,8 +10,8 @@ router = APIRouter(prefix="/api/twitter", tags=["twitter"])
 
 X_BEARER_TOKEN = os.getenv("X_BEARER_TOKEN")
 
-# Polymarket User ID: 1215309325946114048
-POLYMARKET_USER_ID = "1215309325946114048"
+# Polymarket User ID: 1261335549215989760 (confirmed via /2/users/by/username/Polymarket)
+POLYMARKET_USER_ID = "1261335549215989760"
 
 class TweetData(BaseModel):
     id: str
@@ -44,55 +45,63 @@ def extract_tweet_locations(text: str) -> List[str]:
 # In-memory cache for the session
 CACHED_TWEETS = []
 
+def _get_mock_tweets() -> List[TweetData]:
+    now = datetime.datetime.now(datetime.timezone.utc)
+    mock_pool = [
+        {
+            "id": f"mock_1_{now.strftime('%Y%m%d')}",
+            "text": "🔥 NEW HIGH: US Election 2024 volume just crossed $500M! #Polymarket #Election2024",
+            "created_at": now.isoformat(),
+            "author_id": POLYMARKET_USER_ID,
+            "locations": ["Washington D.C."],
+            "url": "https://x.com/polymarket"
+        },
+        {
+            "id": f"mock_2_{now.strftime('%Y%m%d')}",
+            "text": "Bitcoin $100k? Traders are currently pricing in a 65% chance by end of Q2. 🚀 #BTC #Crypto",
+            "created_at": (now - datetime.timedelta(minutes=5)).isoformat(),
+            "author_id": POLYMARKET_USER_ID,
+            "locations": ["New York"],
+            "url": "https://x.com/polymarket"
+        },
+        {
+            "id": f"mock_3_{now.strftime('%Y%m%d')}",
+            "text": "Will the Fed cut rates in June? New high-stakes market just went live. 🏛️ #Finance",
+            "created_at": (now - datetime.timedelta(minutes=15)).isoformat(),
+            "author_id": POLYMARKET_USER_ID,
+            "locations": ["Washington D.C."],
+            "url": "https://x.com/polymarket"
+        },
+        {
+            "id": f"mock_4_{now.strftime('%Y%m%d')}",
+            "text": "London's Mayor Election: Check the latest odds on Polymarket. 🇬🇧 #London",
+            "created_at": (now - datetime.timedelta(minutes=30)).isoformat(),
+            "author_id": POLYMARKET_USER_ID,
+            "locations": ["London"],
+            "url": "https://x.com/polymarket"
+        }
+    ]
+    return [TweetData(**t) for t in mock_pool]
+
+
 @router.get("/polymarket", response_model=List[TweetData])
 async def get_polymarket_tweets(history: bool = False):
     global CACHED_TWEETS
+    
+    # Always refresh token from env to handle live changes
+    token = os.getenv("X_BEARER_TOKEN")
 
     if history and CACHED_TWEETS:
+        # If we have cached real tweets or mock tweets, return them
         return CACHED_TWEETS
 
-    if not X_BEARER_TOKEN:
-        mock_pool = [
-            {
-                "id": "mock_1",
-                "text": "🔥 NEW HIGH: US Election 2024 volume just crossed $500M! #Polymarket #Election2024",
-                "created_at": "2026-04-28T12:00:00Z",
-                "author_id": POLYMARKET_USER_ID,
-                "locations": ["Washington D.C."],
-                "url": "https://x.com/polymarket"
-            },
-            {
-                "id": "mock_2",
-                "text": "Bitcoin $100k? Traders are currently pricing in a 65% chance by end of Q2. 🚀 #BTC #Crypto",
-                "created_at": "2026-04-28T12:05:00Z",
-                "author_id": POLYMARKET_USER_ID,
-                "locations": ["New York"],
-                "url": "https://x.com/polymarket"
-            },
-            {
-                "id": "mock_3",
-                "text": "Will the Fed cut rates in June? New high-stakes market just went live. 🏛️ #Finance",
-                "created_at": "2026-04-28T12:10:00Z",
-                "author_id": POLYMARKET_USER_ID,
-                "locations": ["Washington D.C."],
-                "url": "https://x.com/polymarket"
-            },
-            {
-                "id": "mock_4",
-                "text": "London's Mayor Election: Check the latest odds on Polymarket. 🇬🇧 #London",
-                "created_at": "2026-04-28T12:15:00Z",
-                "author_id": POLYMARKET_USER_ID,
-                "locations": ["London"],
-                "url": "https://x.com/polymarket"
-            }
-        ]
+    if not token or token.strip() == "":
+        mock_data = _get_mock_tweets()
         if history:
-            CACHED_TWEETS = [TweetData(**t) for t in mock_pool]
+            CACHED_TWEETS = mock_data
             return CACHED_TWEETS
         
-        # In mock mode, just simulate one "new" tweet
-        new_raw = random.choice(mock_pool)
-        new_tweet = TweetData(**new_raw)
+        new_tweet = random.choice(mock_data)
         if not any(t.id == new_tweet.id for t in CACHED_TWEETS):
             CACHED_TWEETS.append(new_tweet)
         return [new_tweet]
@@ -101,14 +110,17 @@ async def get_polymarket_tweets(history: bool = False):
         async with httpx.AsyncClient(timeout=10.0) as client:
             url = f"https://api.twitter.com/2/users/{POLYMARKET_USER_ID}/tweets"
             params = {
-                "max_results": 10 if history else 5,
+                "max_results": 20 if history else 5,
                 "tweet.fields": "created_at,author_id",
                 "exclude": "retweets,replies"
             }
-            headers = {"Authorization": f"Bearer {X_BEARER_TOKEN}"}
+            headers = {"Authorization": f"Bearer {token}"}
             
             resp = await client.get(url, params=params, headers=headers)
             if resp.status_code != 200:
+                print(f"[Twitter] API Error {resp.status_code}: {resp.text}")
+                # If we have a key but API fails (e.g. rate limit or 401), 
+                # we return current cache or empty. NO MOCK FALLBACK.
                 return CACHED_TWEETS if history else []
             
             data = resp.json()
