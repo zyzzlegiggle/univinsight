@@ -129,7 +129,7 @@ export default function StatsChart({ tokenId }: StatsChartProps) {
             const h = history[items[0].dataIndex];
             return h.t ? new Date(h.t * 1000).toLocaleString() : '';
           },
-          label: (ctx) => `${ctx.parsed.y.toFixed(1)}%`
+          label: (ctx) => `${(ctx.parsed?.y ?? 0).toFixed(1)}%`
         }
       },
     },
