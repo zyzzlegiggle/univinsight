@@ -141,7 +141,7 @@ export default function Home() {
     setIsFeedOpen(false);
 
     // Try to get coords from the market object if it has them, or geocode
-    const loc = market.location || (market.locations && market.locations[0]);
+    const loc = market.locations?.[0];
     if (loc) {
        const coords = await geocode(loc);
        setSelectedCoords(coords || null);
