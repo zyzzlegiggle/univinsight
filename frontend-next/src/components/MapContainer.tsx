@@ -19,7 +19,6 @@ interface MapContainerProps {
   selectedCategory?: string | null;
   socialConnections?: { tweet: TweetData; market: MarketHeadline }[];
   onClearSelection?: () => void;
-  selectedCoords?: [number, number] | null;
   selectedTweet?: TweetData | null;
   onTweetClick?: (tweet: TweetData) => void;
 }
