@@ -410,6 +410,7 @@ export default function MapContainer({
             type: 'Feature',
             geometry: { type: 'LineString', coordinates: greatCircleArc(sibCoords[0], c2) },
           }));
+          const connSrc = m.getSource('connections') as mapboxgl.GeoJSONSource;
           if (connSrc) connSrc.setData({ type: 'FeatureCollection', features: lines as any });
         }
       }

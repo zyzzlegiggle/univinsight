@@ -42,47 +42,8 @@ def extract_tweet_locations(text: str) -> List[str]:
     # Simple list deduplication
     return list(set(found)) if found else ["Washington D.C."] # Default to DC if no location found for Polymarket tweets
 
-# In-memory cache for the session
+# In-memory cache for the session (Only real tweets)
 CACHED_TWEETS = []
-
-def _get_mock_tweets() -> List[TweetData]:
-    now = datetime.datetime.now(datetime.timezone.utc)
-    mock_pool = [
-        {
-            "id": f"mock_1_{now.strftime('%Y%m%d')}",
-            "text": "🔥 NEW HIGH: US Election 2024 volume just crossed $500M! #Polymarket #Election2024",
-            "created_at": now.isoformat(),
-            "author_id": POLYMARKET_USER_ID,
-            "locations": ["Washington D.C."],
-            "url": "https://x.com/polymarket"
-        },
-        {
-            "id": f"mock_2_{now.strftime('%Y%m%d')}",
-            "text": "Bitcoin $100k? Traders are currently pricing in a 65% chance by end of Q2. 🚀 #BTC #Crypto",
-            "created_at": (now - datetime.timedelta(minutes=5)).isoformat(),
-            "author_id": POLYMARKET_USER_ID,
-            "locations": ["New York"],
-            "url": "https://x.com/polymarket"
-        },
-        {
-            "id": f"mock_3_{now.strftime('%Y%m%d')}",
-            "text": "Will the Fed cut rates in June? New high-stakes market just went live. 🏛️ #Finance",
-            "created_at": (now - datetime.timedelta(minutes=15)).isoformat(),
-            "author_id": POLYMARKET_USER_ID,
-            "locations": ["Washington D.C."],
-            "url": "https://x.com/polymarket"
-        },
-        {
-            "id": f"mock_4_{now.strftime('%Y%m%d')}",
-            "text": "London's Mayor Election: Check the latest odds on Polymarket. 🇬🇧 #London",
-            "created_at": (now - datetime.timedelta(minutes=30)).isoformat(),
-            "author_id": POLYMARKET_USER_ID,
-            "locations": ["London"],
-            "url": "https://x.com/polymarket"
-        }
-    ]
-    return [TweetData(**t) for t in mock_pool]
-
 
 @router.get("/polymarket", response_model=List[TweetData])
 async def get_polymarket_tweets(history: bool = False):
@@ -91,24 +52,19 @@ async def get_polymarket_tweets(history: bool = False):
     # Always refresh token from env to handle live changes
     token = os.getenv("X_BEARER_TOKEN")
 
-    if history and CACHED_TWEETS:
-        # If we have cached real tweets or mock tweets, return them
-        return CACHED_TWEETS
-
+    # If no token is provided, we do NOT activate mock data.
+    # We return an empty list to disable the social feed functionality gracefully.
     if not token or token.strip() == "":
-        mock_data = _get_mock_tweets()
-        if history:
-            CACHED_TWEETS = mock_data
-            return CACHED_TWEETS
-        
-        new_tweet = random.choice(mock_data)
-        if not any(t.id == new_tweet.id for t in CACHED_TWEETS):
-            CACHED_TWEETS.append(new_tweet)
-        return [new_tweet]
+        return []
+
+    if history and CACHED_TWEETS:
+        # If we have cached real tweets, return them
+        return CACHED_TWEETS[:20]
 
     try:
         async with httpx.AsyncClient(timeout=10.0) as client:
             url = f"https://api.twitter.com/2/users/{POLYMARKET_USER_ID}/tweets"
+            # Limit history to 20 to maintain high quality and lower API costs
             params = {
                 "max_results": 20 if history else 5,
                 "tweet.fields": "created_at,author_id",
@@ -119,8 +75,7 @@ async def get_polymarket_tweets(history: bool = False):
             resp = await client.get(url, params=params, headers=headers)
             if resp.status_code != 200:
                 print(f"[Twitter] API Error {resp.status_code}: {resp.text}")
-                # If we have a key but API fails (e.g. rate limit or 401), 
-                # we return current cache or empty. NO MOCK FALLBACK.
+                # No mock fallback on error
                 return CACHED_TWEETS if history else []
             
             data = resp.json()
@@ -141,8 +96,14 @@ async def get_polymarket_tweets(history: bool = False):
                     new_results.append(td)
                     CACHED_TWEETS.append(td)
             
+            # Keep only the latest 20 real tweets in cache
             CACHED_TWEETS.sort(key=lambda x: x.created_at, reverse=True)
+            CACHED_TWEETS = CACHED_TWEETS[:20]
+            
             return CACHED_TWEETS if history else new_results
+    except Exception as e:
+        print(f"[Twitter] Error: {e}")
+        return CACHED_TWEETS if history else []
     except Exception as e:
         print(f"[Twitter] Error: {e}")
         return CACHED_TWEETS if history else []

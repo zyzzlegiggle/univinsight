@@ -29,31 +29,61 @@ export default function RelatedNews({ data, isLoading }: RelatedNewsProps) {
     );
   }
 
+  const getDomain = (url: string) => {
+    try {
+      return new URL(url).hostname.replace('www.', '');
+    } catch {
+      return null;
+    }
+  };
+
   return (
     <div className="relative group">
       <div className="flex gap-4 overflow-x-auto pb-4 snap-x snap-mandatory scrollbar-hide no-scrollbar -mx-6 px-6">
-        {data.articles.map((article, i) => (
-          <a
-            key={i}
-            href={article.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group/card block w-[280px] shrink-0 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 transition-all hover:shadow-lg hover:-translate-y-1 snap-start"
-          >
-            <div className="flex flex-col h-full">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="px-2 py-0.5 bg-indigo-50 dark:bg-indigo-900/30 rounded text-[9px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                    {article.site?.split('.')[0] || 'News'}
+        {data.articles.map((article, i) => {
+          const domain = getDomain(article.url);
+          return (
+            <a
+              key={i}
+              href={article.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group/card block w-[280px] shrink-0 bg-white dark:bg-slate-800/40 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-700/50 rounded-2xl p-4 transition-all hover:shadow-lg hover:-translate-y-1 snap-start"
+            >
+              <div className="flex flex-col h-full">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    {/* Source Logo with Fallback to Tag */}
+                    <div className="flex items-center gap-1.5">
+                      {domain && (
+                        <div className="w-4 h-4 rounded shadow-sm overflow-hidden flex-shrink-0 bg-white dark:bg-slate-700">
+                          <img 
+                            src={`https://unavatar.io/${domain}`}
+                            alt=""
+                            className="w-full h-full object-contain"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              // Show the tag instead
+                              const tag = (e.target as HTMLImageElement).parentElement?.nextElementSibling;
+                              if (tag) (tag as HTMLElement).style.display = 'block';
+                            }}
+                          />
+                        </div>
+                      )}
+                      <div className="px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700/50 rounded text-[8px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest" 
+                           style={{ display: domain ? 'none' : 'block' }}>
+                        {article.site?.split('.')[0] || 'News'}
+                      </div>
+                    </div>
+
+                    {article.published && !isNaN(new Date(article.published).getTime()) && (
+                      <span className="text-[9px] text-slate-400 font-bold uppercase ml-1">
+                        {new Date(article.published).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </span>
+                    )}
                   </div>
-                  {article.published && !isNaN(new Date(article.published).getTime()) && (
-                    <span className="text-[9px] text-slate-400 font-bold uppercase">
-                      {new Date(article.published).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                    </span>
-                  )}
+                  <ExternalLink className="w-3 h-3 text-slate-300 group-hover/card:text-indigo-500 transition-colors" />
                 </div>
-                <ExternalLink className="w-3 h-3 text-slate-300 group-hover/card:text-indigo-500 transition-colors" />
-              </div>
 
               <div className="flex gap-3 mb-3">
                 {article.image && (
@@ -76,9 +106,10 @@ export default function RelatedNews({ data, isLoading }: RelatedNewsProps) {
                   {article.description}
                 </p>
               )}
-            </div>
-          </a>
-        ))}
+              </div>
+            </a>
+          );
+        })}
       </div>
       
       {/* Visual fade indicators for scrolling */}

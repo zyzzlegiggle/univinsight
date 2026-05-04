@@ -27,3 +27,6 @@ ODDS_API_KEY = os.getenv("ODDS_API_KEY", "")
 CONGRESS_API_KEY = os.getenv("CONGRESS_API_KEY", "")
 DO_AGENT_ENDPOINT = os.getenv("DO_AGENT_ENDPOINT", "")
 DO_AGENT_ACCESS_KEY = os.getenv("DO_AGENT_ACCESS_KEY", "")
+
+# CORS Settings
+ALLOWED_ORIGINS = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173").split(",")

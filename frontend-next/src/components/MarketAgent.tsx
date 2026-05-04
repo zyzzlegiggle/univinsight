@@ -13,7 +13,7 @@ interface MarketAgentProps {
 }
 
 export default function MarketAgent({ market, context, relatedTweets, autoTrigger }: MarketAgentProps) {
-  const [history, setHistory] = useState<{ question: string; answer: string }[]>([]);
+  const [history, setHistory] = useState<{ question: string; answer: string; hidden?: boolean }[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -21,7 +21,7 @@ export default function MarketAgent({ market, context, relatedTweets, autoTrigge
   // Auto-trigger analysis when data is ready
   useEffect(() => {
     if (autoTrigger && history.length === 0 && !loading && context && Object.keys(context).some(k => context[k] !== null)) {
-      handleSend("Analyze this market and provide key insights based on the provided data.");
+      handleSend("Analyze this market and provide key insights based on the provided data.", true);
     }
   }, [autoTrigger, context]);
 
@@ -31,7 +31,7 @@ export default function MarketAgent({ market, context, relatedTweets, autoTrigge
     }
   }, [history, loading]);
 
-  const handleSend = async (forcedMessage?: string) => {
+  const handleSend = async (forcedMessage?: string, isHidden = false) => {
     const question = forcedMessage || input.trim();
     if (!question || loading) return;
 
@@ -53,9 +53,9 @@ export default function MarketAgent({ market, context, relatedTweets, autoTrigge
       };
 
       const res = await fetchAgentChat(question, fullContext);
-      setHistory(prev => [...prev, { question, answer: res.response }]);
+      setHistory(prev => [...prev, { question, answer: res.response, hidden: isHidden }]);
     } catch {
-      setHistory(prev => [...prev, { question, answer: 'Failed to reach the agent. Please try again.' }]);
+      setHistory(prev => [...prev, { question, answer: 'Failed to reach the agent. Please try again.', hidden: isHidden }]);
     } finally {
       setLoading(false);
     }
@@ -81,14 +81,18 @@ export default function MarketAgent({ market, context, relatedTweets, autoTrigge
         {/* Q&A Entries */}
         {history.map((entry, i) => (
           <div key={i} className="border-b border-slate-100 dark:border-slate-800/50 last:border-0">
-            {/* Question */}
-            <div className="px-5 pt-4 pb-2">
-              <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">You</span>
-              <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mt-1">{entry.question}</p>
-            </div>
+            {/* Question (Only show if not hidden) */}
+            {!entry.hidden && (
+              <div className="px-5 pt-4 pb-2">
+                <span className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">You</span>
+                <p className="text-[13px] font-semibold text-slate-800 dark:text-slate-200 mt-1">{entry.question}</p>
+              </div>
+            )}
             {/* Answer — rendered markdown */}
-            <div className="px-5 pb-5">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Agent</span>
+            <div className={`px-5 ${entry.hidden ? 'py-5' : 'pb-5'}`}>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                {entry.hidden ? 'Primary Analysis' : 'Agent Response'}
+              </span>
               <div className="mt-1 prose prose-sm prose-slate dark:prose-invert max-w-none text-[12px] leading-relaxed
                 prose-headings:text-[13px] prose-headings:font-bold prose-headings:mt-3 prose-headings:mb-1
                 prose-p:my-1.5 prose-ul:my-1 prose-li:my-0.5
