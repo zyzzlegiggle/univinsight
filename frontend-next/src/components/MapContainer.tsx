@@ -653,7 +653,7 @@ export default function MapContainer({
         const market = markets.find(mk => mk.condition_id === selectedMarketId);
         if (market) {
           // IMPORTANT: Use selectedCoords if provided (map click), otherwise fallback to geocoding (search/sidebar)
-          const coords = selectedCoords || await geocode(market.location || 'Washington D.C.');
+          const coords = selectedCoords || await geocode(market.locations?.[0] || 'Washington D.C.');
           if (coords) {
             pinnedPopup.current?.setLngLat(coords)
               .setHTML(getPopupHTML(market))
@@ -726,7 +726,7 @@ export default function MapContainer({
       const features = [];
       for (const conn of socialConnections) {
         const tLoc = conn.tweet.locations[0] || 'Washington D.C.';
-        const mLoc = conn.market.location || 'Washington D.C.';
+        const mLoc = conn.market.locations?.[0] || 'Washington D.C.';
         
         const [c1, c2] = await Promise.all([geocode(tLoc), geocode(mLoc)]);
         if (c1 && c2) {

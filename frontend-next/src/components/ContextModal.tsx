@@ -470,7 +470,7 @@ export default function ContextModal({ market, isOpen, relatedTweets }: ContextM
               {/* News */}
               <Section
                 title="Related Articles"
-                defaultOpen={newsData && newsData.articles && newsData.articles.length > 0}
+                defaultOpen={!!(newsData && newsData.articles && newsData.articles.length > 0)}
               >
                 <RelatedNews data={newsData} isLoading={false} />
               </Section>
@@ -478,7 +478,7 @@ export default function ContextModal({ market, isOpen, relatedTweets }: ContextM
               {/* Search Trends */}
               <Section
                 title="Social & Search Trends"
-                defaultOpen={trendsData && trendsData.related_queries && trendsData.related_queries.length > 0}
+                defaultOpen={!!(trendsData && trendsData.related_queries && trendsData.related_queries.length > 0)}
               >
                 {trendsData && trendsData.related_queries?.length > 0 ? (
                   <div className="bg-slate-50 dark:bg-slate-800/30 rounded-2xl p-5 border border-slate-100 dark:border-slate-700/50">

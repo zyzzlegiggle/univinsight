@@ -45,7 +45,7 @@ export default function MarketAgent({ market, context, relatedTweets, autoTrigge
         probability: market.probability,
         volume: market.volume,
         end_date: market.end_date,
-        location: market.location,
+        location: market.locations?.[0] || '',
         categories: market.categories,
         // Limit to most recent 15 tweets to keep token costs low while maintaining intelligence
         social_intelligence: relatedTweets ? relatedTweets.slice(0, 15) : [],
