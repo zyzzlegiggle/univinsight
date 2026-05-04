@@ -219,7 +219,7 @@ export default function Home() {
   if (!selectedCategory || selectedCategory === 'social') {
     socialHistory.forEach(item => {
       markets.forEach(m => {
-        if (m.location === item.location) {
+        if (m.locations?.includes(item.location)) {
           socialConnections.push({ tweet: item.tweet, market: m });
         }
       });
