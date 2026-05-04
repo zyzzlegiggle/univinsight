@@ -278,7 +278,7 @@ export default function Home() {
         <ContextModal
           market={selectedMarket}
           isOpen={isContextOpen}
-          relatedTweets={uniqueTweets.filter(t => t.locations.includes(selectedMarket?.location || ''))}
+          relatedTweets={uniqueTweets.filter(t => t.locations.some(loc => selectedMarket?.locations?.includes(loc)))}
         />
       </div>
     </main>
