@@ -43,8 +43,7 @@ async def _call_do_agent(user_message: str) -> str:
 
     payload = {
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_message}
+            {"role": "user", "content": f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n\n{user_message}"}
         ],
         "stream": False,
     }
