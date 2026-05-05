@@ -6,32 +6,38 @@ UnivInsight is a multi-dimensional intelligence dashboard that fuses prediction 
 
 ## System Architecture
 
-UnivInsight uses a decoupled Next.js/FastAPI architecture designed for real-time data aggregation and agentic reasoning.
-
-```mermaid
-graph TD
-    User((User)) <--> Frontend[Next.js Dashboard]
-    Frontend <--> Proxy["/api Rewrite"]
-    Proxy <--> Backend[FastAPI Backend]
-    
-    subgraph "Intelligence Mesh Layers"
-        Backend --> Market[Polymarket Core]
-        Backend --> Social[X/Twitter Signals]
-        Backend --> News[GDELT / RSS / NewsData]
-        Backend --> Fin[FRED / Finance]
-        Backend --> Pol[Politics / Bills]
-        Backend --> Sent[Sentiment / Fear & Greed]
-        Backend --> Cry[Crypto / DeFi TVL]
-        Backend --> Clim[Climate / Open-Meteo]
-        Backend --> Spt[Sports / Odds]
-        Backend --> Wiki[Wikipedia / Trends]
-        Backend --> Agent[GPT-oss 120b Analyst]
-    end
-    
-    subgraph "Visualization Engine"
-        Frontend --> Map[Mapbox GL Mesh]
-        Frontend --> Charts[Real-time StatsChart]
-    end
+```
+                    ┌─────────────────────┐
+                    │   Next.js Frontend  │
+                    │  Mapbox GL + Charts │
+                    └─────────┬───────────┘
+                              │
+                         /api proxy
+                              │
+                    ┌─────────┴───────────┐
+                    │   FastAPI Backend   │
+                    └─────────┬───────────┘
+                              │
+          ┌───────────────────┼───────────────────┐
+          │                   │                   │
+  ┌───────┴──────┐   ┌───────┴──────┐   ┌────────┴─────┐
+  │   Markets    │   │   Social     │   │    News      │
+  │  Polymarket  │   │  X/Twitter   │   │ RSS / GDELT  │
+  │  Activity    │   │  Sentiment   │   │ GNews        │
+  └──────────────┘   └──────────────┘   └──────────────┘
+          │                   │                   │
+  ┌───────┴──────┐   ┌───────┴──────┐   ┌────────┴─────┐
+  │   Finance    │   │   Context    │   │   Domain     │
+  │  FRED / AV   │   │  Wiki / GTr  │   │ Crypto/DeFi  │
+  │  World Bank  │   │  Gemini LLM  │   │ Climate/EONET│
+  └──────────────┘   └──────────────┘   │ Sports/Odds  │
+                                        │ Politics     │
+                                        └──────────────┘
+                              │
+                    ┌─────────┴───────────┐
+                    │    GPT-oss 120b     │
+                    │   Agentic Analyst   │
+                    └─────────────────────┘
 ```
 
 ---
