@@ -11,7 +11,7 @@ UnivInsight follows a decoupled architecture designed for high performance and a
 ```mermaid
 graph TD
     User((User)) <--> Frontend[Next.js Dashboard]
-    Frontend <--> Proxy[/api Rewrite]
+    Frontend <--> Proxy["/api Rewrite"]
     Proxy <--> Backend[FastAPI Intelligence Layer]
     
     subgraph "Intelligence Layer"
