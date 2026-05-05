@@ -1,54 +1,66 @@
 # UnivInsight
 
-UnivInsight is a real-time intelligence dashboard that aggregates prediction markets, social media signals, and multi-source news into a unified analytical workspace. It uses a custom Intelligence Mesh to visualize the relationships between global events and market probabilities.
+UnivInsight is a multi-dimensional intelligence dashboard that fuses prediction markets with 15 independent data layers. By bridging the gap between social signals, global news, and economic indicators, UnivInsight creates a unified "Intelligence Mesh" for analyzing market behavior.
 
 ---
 
 ## System Architecture
 
-UnivInsight follows a decoupled architecture designed for high performance and agentic analysis.
+UnivInsight uses a decoupled Next.js/FastAPI architecture designed for real-time data aggregation and agentic reasoning.
 
 ```mermaid
 graph TD
     User((User)) <--> Frontend[Next.js Dashboard]
     Frontend <--> Proxy["/api Rewrite"]
-    Proxy <--> Backend[FastAPI Intelligence Layer]
+    Proxy <--> Backend[FastAPI Backend]
     
-    subgraph "Intelligence Layer"
-        Backend --> PM[Polymarket CLOB/API]
-        Backend --> News[GDELT / RSS / GNews]
-        Backend --> Finance[FRED / AlphaVantage]
-        Backend --> Social[X Bearer API]
-        Backend --> AI[DO GenAI Agent / Gemini]
+    subgraph "Intelligence Mesh Layers"
+        Backend --> Market[Polymarket Core]
+        Backend --> Social[X/Twitter Signals]
+        Backend --> News[GDELT / RSS / NewsData]
+        Backend --> Fin[FRED / Finance]
+        Backend --> Pol[Politics / Bills]
+        Backend --> Sent[Sentiment / Fear & Greed]
+        Backend --> Cry[Crypto / DeFi TVL]
+        Backend --> Clim[Climate / Open-Meteo]
+        Backend --> Spt[Sports / Odds]
+        Backend --> Wiki[Wikipedia / Trends]
+        Backend --> Agent[GPT-oss 120b Analyst]
     end
     
-    subgraph "Visualization"
-        Frontend --> Map[Mapbox GL / Intelligence Mesh]
-        Frontend --> Charts[Chart.js / Real-time Delta]
+    subgraph "Visualization Engine"
+        Frontend --> Map[Mapbox GL Mesh]
+        Frontend --> Charts[Real-time StatsChart]
     end
 ```
 
 ---
 
-## Key Features
+## Intelligence Layers
 
-- **Global Intelligence Mesh**: A high-performance Mapbox GL interface visualizing the physical locations of market outcomes and real-time social activity.
-- **Agentic Analysis**: Integrated DigitalOcean GenAI Agent that performs deep-dive market research by synthesizing news sentiment, historical prices, and social trends.
-- **Social Signal Integration**: Real-time X (Twitter) tracking that visually connects social signals to specific market dots on the map.
-- **Multi-Source News Intelligence**: High-integrity news waterfall pulling from Reuters, BBC, NYT, and GDELT with semantic relevance scoring.
-- **Professional Finance Tooling**: Real-time order books, trade notifications, and historical price volatility charts using FRED and AlphaVantage data.
+UnivInsight aggregates data from 15 specialized modules to provide 360-degree context:
+
+- **Market Intelligence**: Real-time order books and price history from Polymarket.
+- **Social Intelligence**: Tracking social signals from X (Twitter) and connecting them to market outcomes.
+- **News Intelligence**: A prioritized news waterfall (RSS -> GNews -> GDELT) with semantic filtering.
+- **Economic Intelligence**: Financial indicators from FRED, AlphaVantage, and World Bank.
+- **Political Intelligence**: Real-time tracking of US Congress bills and legislative activity.
+- **Sentiment Analysis**: GDELT-based tone monitoring and the Crypto Fear & Greed index.
+- **Crypto & DeFi**: Real-time pricing, market caps, and DeFi TVL metrics.
+- **Environmental Context**: Global weather data and natural event tracking (EONET).
+- **Sports & Odds**: Team logos, stadium data, and real-time betting odds.
+- **Contextual Intelligence**: Google Trends and Wikipedia-derived knowledge graph context.
 
 ---
 
 ## Technology Stack
 
-| Component | Technology |
+| Category | Technology |
 | :--- | :--- |
 | **Frontend** | Next.js 15, TypeScript, Tailwind CSS, Framer Motion |
-| **State/UI** | React Hooks, Lucide Icons, Mapbox GL JS |
-| **Charts** | Chart.js with custom Crosshair and Sparkline plugins |
-| **Backend** | FastAPI (Python 3.10+), Httpx, Pydantic, Feedparser |
-| **AI/ML** | Gemini 1.5 Pro (Classification), GPT-oss 120b (Agent) |
+| **Visualization** | Mapbox GL JS, Chart.js, React-Markdown |
+| **Backend** | FastAPI, Httpx, Pydantic, Feedparser, Pytrends |
+| **AI Engine** | Gemini 1.5 Pro (Classification), GPT-oss 120b (Agent) |
 
 ---
 
@@ -56,19 +68,17 @@ graph TD
 
 ### 1. Prerequisites
 - **Python 3.10+** and **Node.js 18+**
-- **Core API Keys**: Mapbox, Gemini, X (Twitter), and DigitalOcean Agent.
-- **Finance API Keys**: FRED and AlphaVantage (for full economic data).
+- **Core Keys**: Mapbox, Gemini, X (Twitter), and DigitalOcean Agent Access.
+- **Data Keys**: FRED, AlphaVantage, GNews, Currents, and The Odds API.
 
-### 2. Backend Setup
+### 2. Launch Backend
 ```bash
 cd backend
-python -m venv venv
-source venv/bin/activate  # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 python main.py
 ```
 
-### 3. Frontend Setup
+### 3. Launch Frontend
 ```bash
 cd frontend-next
 npm install
@@ -76,3 +86,4 @@ npm run dev
 ```
 
 ---
+Created by the UnivInsight Team.
