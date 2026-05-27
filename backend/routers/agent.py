@@ -1,9 +1,10 @@
-"""DigitalOcean GenAI Agent — OpenAI-compatible Chat Completions API."""
+"""OpenRouter GenAI Agent — OpenAI-compatible Chat Completions API."""
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
 import json
-from config import DO_AGENT_ENDPOINT, DO_AGENT_ACCESS_KEY
+import os
+from config import OPENROUTER_API_KEY, OPENROUTER_MODEL
 
 router = APIRouter(prefix="/api/agent", tags=["agent"])
 
@@ -17,65 +18,79 @@ class ChatRequest(BaseModel):
     context: dict
 
 
-SYSTEM_PROMPT = """You are a prediction market analyst. Users will ask about specific markets and provide rich context data including news, social media trends (X/Twitter), and specific market outcomes.
+# Load system_prompt.md dynamically
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+SYSTEM_PROMPT_PATH = os.path.join(BASE_DIR, "system_prompt.md")
+
+try:
+    with open(SYSTEM_PROMPT_PATH, "r", encoding="utf-8") as f:
+        SYSTEM_PROMPT = f.read().strip()
+except Exception as e:
+    print(f"[Agent] Failed to read system_prompt.md dynamically, using fallback. Error: {e}")
+    SYSTEM_PROMPT = """You are a "Univinsight" prediction market analyst. Users will ask about specific markets and provide rich context data including news, social media trends (X/Twitter), and specific market outcomes.
 
 Rules:
-- Be brief. Use 2-4 short sentences max unless asked to elaborate.
-- Use bullet points for multiple items.
-- Reference specific data points from the provided context (e.g., current probabilities, related tweets, news sentiment) when relevant.
-- State facts, not opinions. If data (like social sentiment vs. market price) conflicts, say so plainly.
-- Analyze all provided market outcomes/options to provide a holistic view.
-- Never make up information not in the context.
-- Do not greet the user or use filler phrases like "Great question!" or "Sure!".
-- Start your response directly with the answer."""
+
+Be brief. Use 2-4 short sentences max unless asked to elaborate.
+Use bullet points for multiple items.
+Reference specific data points from the provided context (e.g., current probabilities, related tweets, news sentiment) when relevant.
+State facts, not opinions. If data (like social sentiment vs. market price) conflicts, say so plainly.
+Analyze all provided market outcomes/options to provide a holistic view.
+Never make up information not in the context.
+Do not greet the user or use filler phrases like "Great question!" or "Sure!".
+Start your response directly with the answer."""
 
 
-async def _call_do_agent(user_message: str) -> str:
+async def _call_openrouter_agent(user_message: str) -> str:
     """
-    Call the DigitalOcean GenAI Agent using the OpenAI-compatible
-    chat completions API.
+    Call the OpenRouter API using their chat completions endpoint.
     """
-    if not DO_AGENT_ENDPOINT or not DO_AGENT_ACCESS_KEY:
-        raise HTTPException(status_code=503, detail="Agent not configured")
+    if not OPENROUTER_API_KEY:
+        raise HTTPException(status_code=503, detail="OpenRouter API key not configured")
 
-    base = DO_AGENT_ENDPOINT.rstrip("/")
-    url = f"{base}/api/v1/chat/completions"
+    url = "https://openrouter.ai/api/v1/chat/completions"
 
     payload = {
+        "model": OPENROUTER_MODEL or "google/gemini-2.5-flash",
         "messages": [
-            {"role": "user", "content": f"INSTRUCTIONS:\n{SYSTEM_PROMPT}\n\n{user_message}"}
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message}
         ],
         "stream": False,
+    }
+
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {OPENROUTER_API_KEY}",
+        "HTTP-Referer": "https://univinsight.com",
+        "X-Title": "UnivInsight",
     }
 
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=60.0) as client:
             resp = await client.post(
                 url,
-                headers={
-                    "Content-Type": "application/json",
-                    "Authorization": f"Bearer {DO_AGENT_ACCESS_KEY}",
-                },
+                headers=headers,
                 json=payload,
             )
             resp.raise_for_status()
             data = resp.json()
 
-            # OpenAI-compatible response: data.choices[0].message.content
+            # OpenRouter / OpenAI response format: data.choices[0].message.content
             choices = data.get("choices", [])
             if choices:
                 return choices[0].get("message", {}).get("content", "No response content.")
             return "Agent returned empty choices."
 
     except httpx.HTTPStatusError as e:
-        print(f"[Agent] DO returned {e.response.status_code}: {e.response.text[:500]}")
+        print(f"[Agent] OpenRouter returned {e.response.status_code}: {e.response.text[:500]}")
         raise HTTPException(
             status_code=e.response.status_code,
-            detail=f"DO Agent error: {e.response.text[:200]}",
+            detail=f"OpenRouter error: {e.response.text[:200]}",
         )
     except httpx.ConnectError as e:
         print(f"[Agent] Connection failed: {e}")
-        raise HTTPException(status_code=502, detail="Cannot reach DO Agent")
+        raise HTTPException(status_code=502, detail="Cannot reach OpenRouter")
     except Exception as e:
         print(f"[Agent] Unexpected error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -95,9 +110,9 @@ async def classify_markets(req: ClassifyRequest):
 
 @router.post("/chat")
 async def chat_with_agent(req: ChatRequest):
-    """Chat with the DO Agent about a specific market."""
+    """Chat with the OpenRouter Agent about a specific market."""
     prompt = f"{req.message}\n\n### Market Context:\n{json.dumps(req.context, indent=2)}"
-    text = await _call_do_agent(prompt)
+    text = await _call_openrouter_agent(prompt)
     return {"response": text}
 
 

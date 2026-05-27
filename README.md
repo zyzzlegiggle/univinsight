@@ -74,7 +74,7 @@ UnivInsight aggregates data from 15 specialized modules to provide 360-degree co
 
 ### 1. Prerequisites
 - **Python 3.10+** and **Node.js 18+**
-- **Core Keys**: Mapbox, Gemini, X (Twitter), and DigitalOcean Agent Access.
+- **Core Keys**: Mapbox, Gemini, X (Twitter), and OpenRouter API Key.
 - **Data Keys**: FRED, AlphaVantage, GNews, Currents, and The Odds API.
 
 ### 2. Launch Backend
